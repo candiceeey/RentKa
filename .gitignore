@@ -3,4 +3,4 @@ dist/
 .env
 .secret.local
 *.keystore
-serviceAccount*.json
+serviceAccountKey.json
