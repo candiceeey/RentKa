@@ -1,0 +1,16 @@
+{
+  "name": "rentka-core",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pure TypeScript business logic for RentKa (matching, auto-fill, ID parsing, validators, deposit settlement, rental state machine). Shared by the Expo app and Cloud Functions.",
+  "scripts": {
+    "test": "jest",
+    "build": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.4.14",
+    "typescript": "^5.9.3"
+  }
+}
