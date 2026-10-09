@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "RentKa",
-    "slug": "rentka",
+    "name": "app",
+    "slug": "app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "rentka",
+    "scheme": "app",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"
@@ -17,9 +17,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false,
-      "package": "com.rentka.app",
-      "googleServicesFile": "./google-services.json"
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
@@ -33,28 +31,6 @@
           "backgroundColor": "#208AEF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
-        }
-      ],
-      "expo-secure-store",
-      "expo-build-properties",
-      "@react-native-firebase/app",
-      [
-        "expo-camera",
-        {
-          "cameraPermission": "RentKa uses the camera to scan your ID and take photos of items."
-        }
-      ],
-      [
-        "expo-location",
-        {
-          "locationWhenInUsePermission": "RentKa uses your location to match you with nearby items."
-        }
-      ],
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "RentKa lets you choose photos of your items.",
-          "cameraPermission": "RentKa uses the camera to take photos of items."
         }
       ]
     ],

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "235064361637",
+    "project_id": "rentka",
+    "storage_bucket": "rentka.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:235064361637:android:2e857a34afa60c43b5c34c",
+        "android_client_info": {
+          "package_name": "com.rentka.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDikE1Hy94LULF1lolNm-_DdrcAPcsSAEQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

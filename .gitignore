@@ -4,3 +4,4 @@ dist/
 .secret.local
 *.keystore
 serviceAccountKey.json
+*firebase-adminsdk*.json
