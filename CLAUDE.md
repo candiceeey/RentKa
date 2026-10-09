@@ -10,7 +10,7 @@ RentKa is a mobile peer-to-peer item rental app for Butuan City (capstone projec
 
 ## Stack
 - `frontend/`: React Native + Expo SDK 57, TypeScript, Expo Router (`src/app`), development build (NOT Expo Go), Android only, package `com.rentka.app`.
-- `backend/`: Firebase (config, rules, rules tests and a Functions TypeScript scaffold exist; nothing deployed yet): Firestore (Singapore), Storage (US-EAST1), Auth (email/password), Cloud Functions 2nd gen. Project id `rentka`. Blaze plan is on: avoid anything that could run up costs.
+- `backend/`: Firebase (real Firestore and Storage rules deployed 2026-10-09; rules tests and a Functions TypeScript scaffold exist; no functions deployed yet): Firestore (Singapore), Storage (US-EAST1), Auth (email/password), Cloud Functions 2nd gen. Project id `rentka`. Blaze plan is on: avoid anything that could run up costs.
 - `rentka-core/`: pure TypeScript logic with tests (matching, description, ID parsing, validators, settlement, state machine). Sync into the app with `sync-core.bat`.
 - Use the React Native Firebase **modular API** (`getAuth`, `getFirestore`, `doc`, `setDoc`...).
 - ML Kit (image labeling + text recognition) via our own Expo local native module (Kotlin). Third-party wrappers were rejected.
@@ -41,7 +41,7 @@ RentKa is a mobile peer-to-peer item rental app for Butuan City (capstone projec
 - Log decisions in `docs/decisions.md`, progress in `docs/build-status.md`, anything that affects the paper in `docs/paper-change-log.md`, and test results in `docs/test-log.md`.
 
 ## Known open items
-- Firestore rules are only the temporary `connectionTest` rule: deploy real rules from the spec.
+- Check that Storage rules can read Firestore (cross-service permission) with a real payment-proof upload from the app.
 - Set the Google Cloud budget alert.
 - Verify the Blaze payment/hold status.
 

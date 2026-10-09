@@ -1,7 +1,7 @@
 # Test Log
 | Date | What was tested | Result | Notes |
 |------|-----------------|--------|-------|
-| 2026-10-09 | Firestore and Storage security rules in the Firebase emulator (`cd backend && npm run test:rules`) | 17 of 17 passed | Emulator only (project `demo-rentka`). Rules are not deployed yet. |
+| 2026-10-09 | Firestore and Storage security rules in the Firebase emulator (`cd backend && npm run test:rules`) | 17 of 17 passed | Emulator only (project `demo-rentka`). The same rules files were deployed to `rentka` afterwards on 2026-10-09. |
 
 ## Security rules tests (2026-10-09, emulator)
 | Test ID | Scenario | Expected | Actual | Pass/Fail |
