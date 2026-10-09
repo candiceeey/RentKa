@@ -7,3 +7,7 @@
 - Storage bucket in US-EAST1 (no-cost location); Firestore in Singapore.
 - Matching: category is a hard filter; labels used only when both sides have usable non-generic labels; characteristic score is coverage of requested chips; min score 0.40, top 5, tiebreak trust then distance.
 - Auto-fill: raw photoLabels and autofillSuggested are stored untouched next to the user-confirmed fields.
+- Firebase CLI is a devDependency of backend/ (run with `npx firebase`), not a global install. backend/ config was written by hand to match `firebase init` output.
+- Cloud Functions: TypeScript, Node 22, region asia-southeast1 (same as Firestore), maxInstances 2 to cap cost.
+- Rules tests run in the emulator under the fake project id `demo-rentka`, so they cannot touch the real project and need no login.
+- `users` create rule is an allowlist (fullName, contact, email, roles, fcmToken, createdAt) instead of only blocking verified and trustScore, so a client cannot fake isAdult or ratingCount.
