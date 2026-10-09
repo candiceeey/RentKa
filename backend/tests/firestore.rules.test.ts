@@ -3,6 +3,7 @@ import {
   BORROWER, ITEM, LENDER, NEWBIE, RENTAL, STRANGER,
   createTestEnv, seed, unverifiedUser, verifiedUser,
 } from './helpers';
+import { SIGNUP_FIELDS, pickSignupFields } from '../../rentka-core/src/userProfile';
 
 let env: RulesTestEnvironment;
 
@@ -78,6 +79,12 @@ describe('users', () => {
     const profile = { fullName: 'New', contact: '09170000009', email: 'new@rentka.test', roles: ['borrower'] };
     await assertSucceeds(db.doc(`users/${NEWBIE}`).set(profile));
     await assertFails(db.doc(`users/${STRANGER}`).set(profile));
+  });
+
+  test('R04d every field in the app SIGNUP_FIELDS constant is accepted by the create rule', async () => {
+    const db = unverifiedUser(env, NEWBIE).firestore();
+    const everyField = Object.fromEntries(SIGNUP_FIELDS.map((field) => [field, 'x']));
+    await assertSucceeds(db.doc(`users/${NEWBIE}`).set(pickSignupFields({ ...everyField, verified: true })));
   });
 
   test('R05 user can update own fullName, contact and fcmToken', async () => {
