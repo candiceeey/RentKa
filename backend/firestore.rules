@@ -11,9 +11,9 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if signedIn();
+      // Allowlist: verified, isAdult, verifiedAt, idType, trustScore, ratingCount are function-written.
       allow create: if isOwner(uid)
-        && !('verified' in request.resource.data)
-        && !('trustScore' in request.resource.data);
+        && request.resource.data.keys().hasOnly(['fullName','contact','email','roles','fcmToken','createdAt']);
       allow update: if isOwner(uid) && only(['fullName','contact','fcmToken']);
       allow delete: if false;
     }

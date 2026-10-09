@@ -2,9 +2,18 @@
   "name": "rentka-backend",
   "private": true,
   "scripts": {
+    "test:rules": "firebase emulators:exec --project demo-rentka --only firestore,storage \"jest\"",
+    "emulators": "firebase emulators:start --project demo-rentka",
     "deploy:rules": "firebase deploy --only firestore:rules,storage"
   },
   "devDependencies": {
-    "firebase-tools": "^15.33.0"
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.6.4",
+    "firebase": "^12.19.0",
+    "firebase-tools": "^15.33.0",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.4.14",
+    "typescript": "^5.9.3"
   }
 }
