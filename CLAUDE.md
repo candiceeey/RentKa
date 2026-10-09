@@ -23,8 +23,8 @@ RentKa is a mobile peer-to-peer item rental app for Butuan City (capstone projec
 - Check phone connection: `adb devices`
 
 ## Product rules (do not change without asking)
-- Match Score = Field×0.40 + Labels×0.30 + Proximity×0.30. With no usable photo: 0.55 Field / 0.45 Proximity. Labels count only at confidence ≥ 0.70. Field = 0.5 category + 0.3 subcategory + 0.2 characteristic overlap. Proximity = max(0, 1 − km/10). Hard filters: item available and dailyRate ≤ borrower dailyBudget.
-- Photo auto-fill: ML Kit labels/text fill an **editable** description.
+- Match Score = Field×0.40 + Labels×0.30 + Proximity×0.30. Full rules (fallback weights, generic label list, hard filters, ranking, min score 0.40, top 5) are in `docs/data-model-and-rules.md` and `rentka-core/src/matching.ts`. Keep weights in the `WEIGHTS` config.
+- Photo auto-fill: ML Kit labels/text fill an **editable** description plus editable characteristic chips. Always store raw `photoLabels` and `autofillSuggested` untouched; Field uses the confirmed fields, Labels uses raw `photoLabels`, and the free-text description is never matched.
 - ID verification runs on-device (GCash-style scan, pre-fill). Raw ID data is never uploaded. The cloud stores only verified, isAdult, timestamp, and an HMAC hash. Verification is automatic, with no admin approval. Be honest in the paper: no face matching.
 - An item is hidden from listings until returned. One lender per match per item. Each item has a unique attribute (e.g. IMEI for phones, Luhn-validated).
 - Rentals can be open-ended. Deposit = dailyRate × 7 and covers 7 days. At day 7 the app prompts return or extend (top up), and the lender is alerted when the deadline passes. daysUsed = ceil(hours/24), min 1. Settlement is refund / even / owed. Payment happens outside the app: the system records amounts and statuses only.

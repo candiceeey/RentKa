@@ -1,0 +1,10 @@
+{
+  "name": "rentka-backend",
+  "private": true,
+  "scripts": {
+    "deploy:rules": "firebase deploy --only firestore:rules,storage"
+  },
+  "devDependencies": {
+    "firebase-tools": "^15.33.0"
+  }
+}

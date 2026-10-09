@@ -8,7 +8,7 @@ Stack: React Native + Expo (dev build), Firebase (Auth, Firestore, Storage, Clou
 
 1. ID scan, OCR pre-fill, and selfie happen **on the device**. Parsed ID data is kept **only in local secure storage**. The cloud receives only `verified`, `isAdult`, a timestamp, and an HMAC hash for duplicate detection. No `ids/` path in Storage.
 2. Verification is **automatic** (Cloud Function `verifyIdentity`). Admin only handles flagged cases, disputes, and moderation.
-3. AI auto-fill: ML Kit labels (>= 0.70) + OCR text become an editable description. Matching uses the labels, not the description.
+3. AI auto-fill: ML Kit labels (>= 0.70) + OCR text become an editable description and editable characteristic chips (brand, model). Matching uses the confirmed category/subcategory/chips (Field) and the raw photo labels (Labels), never the free-text description.
 4. Item is **hidden from listings until returned** (`items.status`).
 5. Every item has a **unique attribute** (IMEI, serial number, or distinguishing mark).
 6. **1 lender per match per item.** One request is accepted by one lender, and one item has one active rental.
@@ -38,14 +38,14 @@ Client may edit only: `fullName, contact, fcmToken`. Everything else is function
 ```
 ownerId
 category, subcategory
-characteristics: { ... }
-description            // final, user-editable
-aiDescription          // generated text, kept for UAT stats
-aiLabels: [{ label, confidence }]
+characteristics: [string]   // editable chips, lowercase, e.g. ["bosch","gsb 550","cordless"]; Field score uses these
+description            // final, user-editable (not used for matching)
+photoLabels: [{ label, confidence }]   // raw ML Kit output; NEVER overwritten by edits; Labels score uses this
+autofillSuggested: { description, category, subcategory, characteristics }  // what auto-fill proposed; NEVER overwritten; used to compute acceptance rate for Chapter 4
 photos: [storagePaths]
 dailyRate: number
 location: { lat, lng, address }
-status: "available" | "rented" | "inactive"
+status: "available" | "reserved" | "rented" | "inactive"
 currentRentalId: string | null
 uniqueIdType: "IMEI" | "SERIAL" | "MARK"
 uniqueIdMasked: "•••••1234"        // public
@@ -61,12 +61,12 @@ Readable only by the owner and the borrower of `currentRentalId`.
 ### `requests/{requestId}`
 ```
 borrowerId
-category, subcategory, characteristics
-description, aiDescription, aiLabels
+category, subcategory, characteristics: [string]
+description, photoLabels, autofillSuggested   // same meaning as on items
 refPhoto: storagePath | null
 dailyBudget: number
 desiredStart: timestamp
-location: { lat, lng, address }
+location: { lat, lng, address } | null   // null when location permission is denied
 status: "open" | "matched" | "closed"
 matchedItemId: string | null
 createdAt
@@ -80,8 +80,14 @@ score, breakdown: { field, labels, proximity }
 status: "suggested" | "chosen" | "closed"
 createdAt
 ```
-Matching hard filters: `items.status == "available"` AND `dailyRate <= dailyBudget`.
-Score = Field x 0.40 + Labels x 0.30 + Proximity x 0.30 (no photo: Field 0.55, Proximity 0.45).
+Matching hard filters (all must pass): `items.status == "available"`, owner verified, owner != borrower, `dailyRate <= dailyBudget`, category equal.
+Score = Field x 0.40 + Labels x 0.30 + Proximity x 0.30.
+- Field = 0.5 category + 0.3 subcategory + 0.2 characteristic coverage (share of the borrower's requested chips the item has; extra item chips are not penalized; no chips requested = 1).
+- Labels: only labels with confidence >= 0.70 and not in the generic list (Product, Material, Room, Tool, ...). Score = share of the borrower's labels found on the item.
+- Fallbacks: labels used only if BOTH sides have usable labels. Otherwise Field 0.55 / Proximity 0.45. No location: Field 0.571 / Labels 0.429. Neither: Field only.
+- Proximity = max(0, 1 - km/10).
+- Ranking: score desc, then lender trustScore desc, then distance asc. Drop scores below 0.40. Show top 5.
+- Weights live in one config (`WEIGHTS` in matching.ts) so they can be tuned after user testing.
 
 ### `rentals/{rentalId}`
 ```

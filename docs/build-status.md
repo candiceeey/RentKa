@@ -2,7 +2,7 @@
 ## Done
 - Repo on GitHub (candiceeey/RentKa), Expo app builds and installs on phone as RentKa.
 - Firebase project, Auth, Firestore, Storage, Android app configured; test screen reads/writes Firestore.
-- rentka-core with 37 passing tests.
+- rentka-core with 49 passing tests (matching updated: hard filters, generic labels, fallbacks, ranking; autofill chips and accuracy).
 ## Next
 1. Create backend/ (firebase init, real rules, functions).
 2. ML Kit native module.

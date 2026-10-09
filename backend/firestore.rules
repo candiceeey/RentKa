@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function verified() { return signedIn() && request.auth.token.verified == true; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function only(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if isOwner(uid)
+        && !('verified' in request.resource.data)
+        && !('trustScore' in request.resource.data);
+      allow update: if isOwner(uid) && only(['fullName','contact','fcmToken']);
+      allow delete: if false;
+    }
+
+    match /items/{itemId} {
+      allow read: if verified();
+      allow create: if verified()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.status == 'available';
+      allow update: if verified()
+        && resource.data.ownerId == request.auth.uid
+        && only(['description','dailyRate','photos','location','characteristics']);
+      allow delete: if false;
+
+      match /private/{docId} {
+        allow read: if signedIn() && (
+          get(/databases/$(database)/documents/items/$(itemId)).data.ownerId == request.auth.uid ||
+          (get(/databases/$(database)/documents/items/$(itemId)).data.currentRentalId != null &&
+           get(/databases/$(database)/documents/rentals/$(get(/databases/$(database)/documents/items/$(itemId)).data.currentRentalId)).data.borrowerId == request.auth.uid)
+        );
+        allow create: if signedIn() &&
+          get(/databases/$(database)/documents/items/$(itemId)).data.ownerId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    match /requests/{requestId} {
+      allow read: if verified();
+      allow create: if verified()
+        && request.resource.data.borrowerId == request.auth.uid
+        && request.resource.data.status == 'open';
+      allow update: if verified()
+        && resource.data.borrowerId == request.auth.uid
+        && only(['description','dailyBudget','desiredStart','location','characteristics']);
+      allow delete: if false;
+    }
+
+    match /matches/{matchId} {
+      allow read: if signedIn() &&
+        (resource.data.lenderId == request.auth.uid || resource.data.borrowerId == request.auth.uid);
+      allow write: if false;
+    }
+
+    match /rentals/{rentalId} {
+      allow read: if signedIn() &&
+        (resource.data.lenderId == request.auth.uid || resource.data.borrowerId == request.auth.uid);
+      allow write: if false;   // all changes go through rentalAction
+
+      match /messages/{msgId} {
+        function participant() {
+          let r = get(/databases/$(database)/documents/rentals/$(rentalId)).data;
+          return signedIn() && (r.lenderId == request.auth.uid || r.borrowerId == request.auth.uid);
+        }
+        allow read: if participant();
+        allow create: if participant() && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
+    }
+
+    match /deposits/{id}       { allow read: if signedIn(); allow write: if false; }
+    match /reviews/{id}        { allow read: if signedIn(); allow write: if false; }
+    match /transactionLogs/{id}{ allow read, write: if false; }  // admin via console/Admin SDK
+    match /uniqueIds/{id}      { allow read, write: if false; }
+    match /idHashes/{id}       { allow read, write: if false; }
+    match /verifyAttempts/{id} { allow read, write: if false; }
+  }
+}

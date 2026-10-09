@@ -6,7 +6,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from '@react-native-firebase/auth';
-import { doc, getDoc, getFirestore, serverTimestamp, setDoc } from '@react-native-firebase/firestore';
+import { doc, getDoc, getFirestore, setDoc } from '@react-native-firebase/firestore';
 
 export default function FirebaseTest() {
   const [email, setEmail] = useState('test1@rentka.test');
@@ -41,17 +41,15 @@ export default function FirebaseTest() {
     run('write Firestore', async () => {
       const u = getAuth().currentUser;
       if (!u) throw new Error('Sign in first');
-      await setDoc(doc(getFirestore(), 'connectionTest', u.uid), {
-        hello: 'RentKa',
-        at: serverTimestamp(),
-      });
+      // Real rules: a user may only write fullName, contact, fcmToken on their own doc.
+      await setDoc(doc(getFirestore(), 'users', u.uid), { fullName: 'Test User' }, { merge: true });
     });
 
   const read = () =>
     run('read Firestore', async () => {
       const u = getAuth().currentUser;
       if (!u) throw new Error('Sign in first');
-      const snap = await getDoc(doc(getFirestore(), 'connectionTest', u.uid));
+      const snap = await getDoc(doc(getFirestore(), 'users', u.uid));
       const d = snap.data();
       return d ? JSON.stringify(d) : 'no document';
     });

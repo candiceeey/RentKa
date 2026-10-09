@@ -1,0 +1,31 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() { return request.auth != null; }
+    function isImage() { return request.resource.contentType.matches('image/.*'); }
+    function under5mb() { return request.resource.size < 5 * 1024 * 1024; }
+    function rentalParticipant(rentalId) {
+      let r = firestore.get(/databases/(default)/documents/rentals/$(rentalId)).data;
+      return signedIn() && (r.lenderId == request.auth.uid || r.borrowerId == request.auth.uid);
+    }
+
+    // Item photos: any signed-in user reads, owner uploads
+    match /items/{uid}/{itemId}/{file} {
+      allow read: if signedIn();
+      allow write: if signedIn() && request.auth.uid == uid && isImage() && under5mb();
+    }
+
+    // Payment proofs and deposit top-ups: rental participants only
+    match /payments/{rentalId}/{file} {
+      allow read: if rentalParticipant(rentalId);
+      allow write: if rentalParticipant(rentalId) && isImage() && under5mb();
+    }
+
+    // Before/after condition photos: rental participants only
+    match /condition/{rentalId}/{file} {
+      allow read: if rentalParticipant(rentalId);
+      allow write: if rentalParticipant(rentalId) && isImage() && under5mb();
+    }
+  }
+}
