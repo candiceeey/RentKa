@@ -10,4 +10,8 @@
 - Firebase CLI is a devDependency of backend/ (run with `npx firebase`), not a global install. backend/ config was written by hand to match `firebase init` output.
 - Cloud Functions: TypeScript, Node 22, region asia-southeast1 (same as Firestore), maxInstances 2 to cap cost.
 - Rules tests run in the emulator under the fake project id `demo-rentka`, so they cannot touch the real project and need no login.
+- Synced core copies (frontend/src/core, backend/functions/src/core) are committed, so a fresh clone builds without running sync-core.bat.
+- Sign-up fields live in one constant, `SIGNUP_FIELDS` in rentka-core/src/userProfile.ts; rules test R04d fails if it drifts from the `users` create rule.
+- Lender/borrower is a UI switch saved on the phone (expo-secure-store). Every account gets both roles; the active side is never written to Firestore.
+- App foundation added no native packages, so no rebuild of the dev build was needed.
 - `users` create rule is an allowlist (fullName, contact, email, roles, fcmToken, createdAt) instead of only blocking verified and trustScore, so a client cannot fake isAdult or ratingCount.

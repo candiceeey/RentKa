@@ -2,6 +2,7 @@
 | Date | What was tested | Result | Notes |
 |------|-----------------|--------|-------|
 | 2026-10-09 | Firestore and Storage security rules in the Firebase emulator (`cd backend && npm run test:rules`) | 17 of 17 passed | Emulator only (project `demo-rentka`). The same rules files were deployed to `rentka` afterwards on 2026-10-09. |
+| 2026-10-09 | Rules tests rerun after adding R04d; rentka-core tests with new userProfile tests | 18 of 18 and 55 of 55 passed | App foundation type-checks and bundles for Android; not yet tested on a phone. |
 
 ## Security rules tests (2026-10-09, emulator)
 | Test ID | Scenario | Expected | Actual | Pass/Fail |
@@ -12,6 +13,7 @@
 | R04 | User creates own profile with `verified` or `trustScore` | Denied | Denied | Pass |
 | R04b | User creates own profile with `isAdult`, `ratingCount`, `verifiedAt` or `idType` | Denied | Denied | Pass |
 | R04c | User creates own profile with allowed fields; same for another uid | Allowed; denied | Allowed; denied | Pass |
+| R04d | User creates own profile with every field in the app's `SIGNUP_FIELDS` constant | Allowed | Allowed | Pass |
 | R05 | User updates own `fullName`, `contact`, `fcmToken` | Allowed | Allowed | Pass |
 | R06 | User updates own `verified`, `trustScore`, `ratingCount`; another user's profile | Denied | Denied | Pass |
 | R07 | Owner edits item description; owner edits `status` or `currentRentalId`; non-owner edits item | Allowed; denied; denied | Allowed; denied; denied | Pass |

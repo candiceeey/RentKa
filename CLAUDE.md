@@ -11,7 +11,7 @@ RentKa is a mobile peer-to-peer item rental app for Butuan City (capstone projec
 ## Stack
 - `frontend/`: React Native + Expo SDK 57, TypeScript, Expo Router (`src/app`), development build (NOT Expo Go), Android only, package `com.rentka.app`.
 - `backend/`: Firebase (real Firestore and Storage rules deployed 2026-10-09; rules tests and a Functions TypeScript scaffold exist; no functions deployed yet): Firestore (Singapore), Storage (US-EAST1), Auth (email/password), Cloud Functions 2nd gen. Project id `rentka`. Blaze plan is on: avoid anything that could run up costs.
-- `rentka-core/`: pure TypeScript logic with tests (matching, description, ID parsing, validators, settlement, state machine). Sync into the app with `sync-core.bat`.
+- `rentka-core/`: pure TypeScript logic with tests (matching, description, ID parsing, validators, settlement, state machine). After editing `rentka-core\src`, run `sync-core.bat` (repo root): it mirrors the files into `frontend\src\core` and `backend\functions\src\core`. Never edit those copies.
 - Use the React Native Firebase **modular API** (`getAuth`, `getFirestore`, `doc`, `setDoc`...).
 - ML Kit (image labeling + text recognition) via our own Expo local native module (Kotlin). Third-party wrappers were rejected.
 
