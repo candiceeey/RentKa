@@ -2,17 +2,25 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import {
   createUserWithEmailAndPassword,
   getAuth,
+  getIdToken,
   onAuthStateChanged,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
 } from '@react-native-firebase/auth';
-import { doc, getFirestore, onSnapshot, serverTimestamp, setDoc } from '@react-native-firebase/firestore';
+import { doc, getFirestore, onSnapshot, serverTimestamp, setDoc, updateDoc } from '@react-native-firebase/firestore';
+import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 
+import { type IdForm, type VerificationResult } from '@/core/identity';
+import { type Role } from '@/core/stateMachine';
 import {
-  ALL_ROLES, normalizePhMobile, pickSignupFields, type ProfileInput, type SignupInput,
+  canAddRole, cleanRoles, normalizePhMobile, pickSignupFields, rolesFor, type ProfileInput, type SignupInput,
 } from '@/core/userProfile';
 
 type User = NonNullable<ReturnType<typeof getAuth>['currentUser']>;
+
+/** Cloud Functions run in Singapore, next to Firestore. */
+const FUNCTIONS_REGION = 'asia-southeast1';
 
 /** users/{uid}. Everything except fullName, contact, email, roles is written by Cloud Functions. */
 export type UserProfile = {
@@ -21,8 +29,10 @@ export type UserProfile = {
   email?: string;
   roles?: string[];
   verified?: boolean;
-  trustScore?: number;
-  ratingCount?: number;
+  lenderTrustScore?: number;
+  lenderRatingCount?: number;
+  borrowerTrustScore?: number;
+  borrowerRatingCount?: number;
 };
 
 type ProfileStatus = 'loading' | 'missing' | 'ready';
@@ -36,14 +46,25 @@ export type AuthStage = 'loading' | 'signedOut' | 'needsProfile' | 'ready';
 type AuthValue = {
   user: User | null;
   profile: UserProfile | null;
+  /** The roles this account holds: only what its owner chose. */
+  roles: Role[];
   stage: AuthStage;
+  /** True right after sign-up, until the ID step has been opened once. */
+  shouldPromptVerify: boolean;
+  clearVerifyPrompt: () => void;
   signIn: (email: string, password: string) => Promise<void>;
   register: (input: SignupInput) => Promise<void>;
   saveProfile: (input: ProfileInput) => Promise<void>;
+  addRole: (role: Role) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  /** Sends the ID form to the verifyIdentity function. The form is never stored on the phone or in the cloud. */
+  verifyIdentity: (form: IdForm) => Promise<VerificationResult>;
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthValue | null>(null);
+
+const NO_INTERNET = 'No internet connection. Check your connection and try again.';
 
 const MESSAGES: Record<string, string> = {
   'auth/invalid-credential': 'Wrong email or password.',
@@ -53,9 +74,12 @@ const MESSAGES: Record<string, string> = {
   'auth/email-already-in-use': 'This email already has an account. Log in instead.',
   'auth/weak-password': 'Choose a stronger password.',
   'auth/too-many-requests': 'Too many attempts. Wait a few minutes and try again.',
-  'auth/network-request-failed': 'No internet connection. Check your connection and try again.',
-  'firestore/unavailable': 'No internet connection. Check your connection and try again.',
+  'auth/network-request-failed': NO_INTERNET,
+  'firestore/unavailable': NO_INTERNET,
   'firestore/permission-denied': 'Could not save your profile. Please try again.',
+  'functions/unavailable': NO_INTERNET,
+  'functions/deadline-exceeded': NO_INTERNET,
+  'functions/failed-precondition': 'Finish your profile first.',
 };
 
 /** Turns a Firebase error into a message a user can act on. */
@@ -65,12 +89,13 @@ export function authErrorMessage(e: unknown): string {
 }
 
 function writeProfile(uid: string, input: ProfileInput, email: string | null) {
+  if (!input.role) throw new Error('Role not chosen');
   // pickSignupFields keeps the write inside what the users create rule allows.
   const data = pickSignupFields({
     fullName: input.fullName.trim(),
     contact: normalizePhMobile(input.contact) ?? input.contact.trim(),
     email: email ?? undefined,
-    roles: ALL_ROLES,
+    roles: rolesFor(input.role),
     createdAt: serverTimestamp(),
   });
   return setDoc(doc(getFirestore(), 'users', uid), data);
@@ -83,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profileStatus, setProfileStatus] = useState<ProfileStatus>('loading');
   // While register() runs, the account exists but its profile is not written yet.
   const [registering, setRegistering] = useState(false);
+  const [shouldPromptVerify, setShouldPromptVerify] = useState(false);
 
   useEffect(
     () =>
@@ -109,6 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       unsubscribe();
       setProfile(null);
       setProfileStatus('loading');
+      setShouldPromptVerify(false);
     };
   }, [uid]);
 
@@ -120,10 +147,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   else if (profileStatus === 'loading') stage = 'loading';
   else stage = profileStatus === 'missing' ? 'needsProfile' : 'ready';
 
+  const roles = cleanRoles(profile?.roles);
+
   const value: AuthValue = {
     user,
     profile,
+    roles,
     stage,
+    shouldPromptVerify,
+    clearVerifyPrompt: () => setShouldPromptVerify(false),
     signIn: async (email, password) => {
       await signInWithEmailAndPassword(getAuth(), email.trim(), password);
     },
@@ -132,6 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const cred = await createUserWithEmailAndPassword(getAuth(), input.email.trim(), input.password);
         await writeProfile(cred.user.uid, input, cred.user.email);
+        setShouldPromptVerify(true);
       } finally {
         setRegistering(false);
       }
@@ -139,6 +172,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     saveProfile: async (input) => {
       if (!user) throw new Error('Not signed in');
       await writeProfile(user.uid, input, user.email);
+      setShouldPromptVerify(true);
+    },
+    addRole: async (role) => {
+      if (!user || !canAddRole(roles, role)) return;
+      // The rules allow roles only to grow: every role already held stays in the list.
+      await updateDoc(doc(getFirestore(), 'users', user.uid), { roles: [...roles, role] });
+    },
+    resetPassword: (email) => sendPasswordResetEmail(getAuth(), email.trim()),
+    verifyIdentity: async (form) => {
+      if (!user) throw new Error('Not signed in');
+      const call = httpsCallable<IdForm, VerificationResult>(getFunctions(undefined, FUNCTIONS_REGION), 'verifyIdentity');
+      const { data } = await call(form);
+      // The verified claim lives in the login token, so fetch a fresh one before the rules will see it.
+      if (data.status === 'verified') await getIdToken(user, true);
+      return data;
     },
     signOut: () => firebaseSignOut(getAuth()),
   };

@@ -1,6 +1,7 @@
 import { StyleSheet } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
+import { TextLink } from '@/components/ui/text-link';
 
 type PromptLinkProps = {
   /** Plain part: "Don't have an account?" */
@@ -14,10 +15,7 @@ type PromptLinkProps = {
 export function PromptLink({ prompt, action, onPress }: PromptLinkProps) {
   return (
     <ThemedText type="small" themeColor="textSecondary" style={styles.center}>
-      {prompt}{' '}
-      <ThemedText type="label" themeColor="primary" accessibilityRole="link" onPress={onPress}>
-        {action}
-      </ThemedText>
+      {prompt} <TextLink onPress={onPress}>{action}</TextLink>
     </ThemedText>
   );
 }

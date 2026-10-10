@@ -2,12 +2,14 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 
 import { BrandLogo } from '@/components/brand-logo';
+import { TERMS_REQUIRED, TermsCheckbox } from '@/components/terms-checkbox';
 import { Button } from '@/components/ui/button';
 import { FormError } from '@/components/ui/form-error';
 import { FormTitle } from '@/components/ui/form-title';
 import { PromptLink } from '@/components/ui/prompt-link';
 import { Screen } from '@/components/ui/screen';
 import { TextField } from '@/components/ui/text-field';
+import { TextLink } from '@/components/ui/text-link';
 import { authErrorMessage, useAuth } from '@/context/auth';
 import { isValidEmail } from '@/core/userProfile';
 
@@ -15,15 +17,19 @@ export default function LoginScreen() {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [agreed, setAgreed] = useState(false);
+  const [termsError, setTermsError] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
+    setTermsError(agreed ? '' : TERMS_REQUIRED);
     if (!isValidEmail(email) || !password) {
       setError('Enter your email and password.');
       return;
     }
     setError('');
+    if (!agreed) return;
     setBusy(true);
     try {
       await signIn(email, password);
@@ -57,6 +63,10 @@ export default function LoginScreen() {
         secureTextEntry
         onSubmitEditing={submit}
       />
+      <TermsCheckbox checked={agreed} onChange={setAgreed} error={termsError} />
+      <TextLink align="right" onPress={() => router.push('/forgot-password')}>
+        Forgot Password?
+      </TextLink>
       <FormError message={error} />
 
       <Button title="Sign In" onPress={submit} loading={busy} />

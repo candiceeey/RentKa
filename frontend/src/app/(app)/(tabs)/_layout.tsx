@@ -1,10 +1,13 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
 import { Type } from '@/constants/theme';
+import { useMode } from '@/context/mode';
 import { useTheme } from '@/hooks/use-theme';
 
-export default function AppLayout() {
+/** Lender: Home, Listings, Requests, Messages. Borrower: Home, Requests, Messages. */
+export default function TabsLayout() {
   const theme = useTheme();
+  const { mode } = useMode();
 
   return (
     <NativeTabs
@@ -20,14 +23,19 @@ export default function AppLayout() {
         <NativeTabs.Trigger.Icon sf="house" md="home" />
       </NativeTabs.Trigger>
 
+      <NativeTabs.Trigger name="listings" hidden={mode !== 'lender'}>
+        <NativeTabs.Trigger.Label>Listings</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="shippingbox" md="inventory_2" />
+      </NativeTabs.Trigger>
+
       <NativeTabs.Trigger name="requests">
         <NativeTabs.Trigger.Label>Requests</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="doc.text" md="description" />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="profile">
-        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="person" md="person" />
+      <NativeTabs.Trigger name="messages">
+        <NativeTabs.Trigger.Label>Messages</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="message" md="chat_bubble" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

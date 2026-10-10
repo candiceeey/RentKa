@@ -2,34 +2,37 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { Radius, Spacing } from '@/constants/theme';
+import { useAuth } from '@/context/auth';
 import { useMode } from '@/context/mode';
 import { type Role } from '@/core/stateMachine';
 import { useTheme } from '@/hooks/use-theme';
 
-const OPTIONS: { value: Role; label: string }[] = [
-  { value: 'lender', label: 'Lender' },
-  { value: 'borrower', label: 'Borrower' },
-];
+export const ROLE_LABEL: Record<Role, string> = { lender: 'Lender', borrower: 'Borrower' };
 
-/** Lender / Borrower pill in the green app header. Same account either way. */
+/**
+ * Lender / Borrower pill in the green app header. Shows only the roles the account holds:
+ * with one role it is a plain label, with both it switches the side of the app being shown.
+ */
 export function ModeSwitch() {
+  const { roles } = useAuth();
   const { mode, setMode } = useMode();
   const theme = useTheme();
 
   return (
     <View style={[styles.track, { backgroundColor: theme.onPrimarySoft }]}>
-      {OPTIONS.map(({ value, label }) => {
-        const selected = mode === value;
+      {roles.map((role) => {
+        const selected = roles.length > 1 && mode === role;
         return (
           <Pressable
-            key={value}
+            key={role}
             accessibilityRole="button"
             accessibilityState={{ selected }}
+            disabled={roles.length < 2}
             hitSlop={Spacing.two}
-            onPress={() => setMode(value)}
+            onPress={() => setMode(role)}
             style={[styles.option, selected && { backgroundColor: theme.surface }]}>
             <ThemedText type="label" themeColor={selected ? 'primary' : 'onPrimary'}>
-              {label}
+              {ROLE_LABEL[role]}
             </ThemedText>
           </Pressable>
         );
