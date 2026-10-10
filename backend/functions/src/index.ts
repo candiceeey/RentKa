@@ -1,10 +1,10 @@
-import { setGlobalOptions } from 'firebase-functions/v2';
+import { initializeApp } from 'firebase-admin/app';
 
-// Region matches Firestore (Singapore). maxInstances caps scaling to protect the Blaze bill.
-setGlobalOptions({ region: 'asia-southeast1', maxInstances: 2 });
+initializeApp();
 
-// Functions to add (docs/data-model-and-rules.md, section 5):
-// - verifyIdentity   (callable)
+export { verifyIdentity } from './verifyIdentity';
+
+// Functions still to add (docs/data-model-and-rules.md, section 5):
 // - onItemCreate     (Firestore onCreate items)
 // - onRequestCreate  (Firestore onCreate requests)
 // - rentalAction     (callable, the rental state machine)
