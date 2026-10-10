@@ -7,8 +7,26 @@ import { Role } from './stateMachine';
 export const SIGNUP_FIELDS = ['fullName', 'contact', 'email', 'roles', 'fcmToken', 'createdAt'] as const;
 export type SignupField = (typeof SIGNUP_FIELDS)[number];
 
-/** One account can act as both. The active side is a UI choice, never stored in the cloud. */
-export const ALL_ROLES: Role[] = ['lender', 'borrower'];
+/** Every role an account can hold. An account holds only the ones its owner chose. */
+export const VALID_ROLES: Role[] = ['lender', 'borrower'];
+
+/** What the user picks under "Sign up as". */
+export type RoleChoice = Role | 'both';
+
+export function rolesFor(choice: RoleChoice): Role[] {
+  return choice === 'both' ? [...VALID_ROLES] : [choice];
+}
+
+/** Keeps only valid roles, without duplicates, in a fixed order. Anything else in the list is ignored. */
+export function cleanRoles(roles: unknown): Role[] {
+  const list = Array.isArray(roles) ? roles : [];
+  return VALID_ROLES.filter((r) => list.includes(r));
+}
+
+/** A role can be added later (never removed) when it is valid and not held yet. */
+export function canAddRole(roles: unknown, role: Role): boolean {
+  return VALID_ROLES.includes(role) && !cleanRoles(roles).includes(role);
+}
 
 /** Drops every key that is not in SIGNUP_FIELDS. */
 export function pickSignupFields(data: Record<string, unknown>): Partial<Record<SignupField, unknown>> {
@@ -35,6 +53,8 @@ export const PASSWORD_MIN_LENGTH = 8;
 export interface ProfileInput {
   fullName: string;
   contact: string;
+  /** null until the user picks one under "Sign up as". */
+  role: RoleChoice | null;
 }
 
 export interface SignupInput extends ProfileInput {
@@ -47,6 +67,7 @@ export function validateProfile(input: ProfileInput): Partial<Record<keyof Profi
   const errors: Partial<Record<keyof ProfileInput, string>> = {};
   if (input.fullName.trim().length < 2) errors.fullName = 'Enter your full name';
   if (!normalizePhMobile(input.contact)) errors.contact = 'Enter a mobile number like 09171234567';
+  if (!input.role) errors.role = 'Choose Lender, Borrower or Both';
   return errors;
 }
 

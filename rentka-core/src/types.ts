@@ -13,7 +13,7 @@ export interface ItemDoc {
   id: string;
   ownerId: string;
   ownerVerified: boolean;
-  trustScore: number; // 0..5, used only as a ranking tiebreaker
+  lenderTrustScore: number; // owner's rating as a lender, 0..5, used only as a ranking tiebreaker
   // Confirmed by the lender (after any edits). Field score uses these.
   category: string;
   subcategory: string;

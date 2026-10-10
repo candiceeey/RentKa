@@ -33,6 +33,19 @@ export function itemStatusFor(status: RentalStatus): 'rented' | 'available' {
 export const isComplete = (ratedByLender: boolean, ratedByBorrower: boolean) =>
   ratedByLender && ratedByBorrower;
 
+/** Every account starts each of its two ratings here, with a count of 0. */
+export const INITIAL_TRUST_SCORE = 3;
+
+/**
+ * Ratings are kept per role. A rating updates the role the rated person had in that rental:
+ * the lender's lender rating, or the borrower's borrower rating. The two are never combined.
+ */
+export function ratingFieldsFor(ratedRole: Role) {
+  return ratedRole === 'lender'
+    ? ({ score: 'lenderTrustScore', count: 'lenderRatingCount' } as const)
+    : ({ score: 'borrowerTrustScore', count: 'borrowerRatingCount' } as const);
+}
+
 /** new = (old * count + rating) / (count + 1), 2 decimals. */
 export function newTrustScore(oldScore: number, count: number, rating: number): number {
   return Math.round(((oldScore * count + rating) / (count + 1)) * 100) / 100;

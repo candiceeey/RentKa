@@ -12,7 +12,7 @@ const req = (o: Partial<RequestDoc> = {}): RequestDoc => ({
   photoLabels: [{ label: 'Drill', confidence: 0.9 }, { label: 'Power tool', confidence: 0.8 }], ...o,
 });
 const item = (o: Partial<ItemDoc> = {}): ItemDoc => ({
-  id: 'i1', ownerId: 'lender', ownerVerified: true, trustScore: 4, category: 'Tools', subcategory: 'Drill',
+  id: 'i1', ownerId: 'lender', ownerVerified: true, lenderTrustScore: 4, category: 'Tools', subcategory: 'Drill',
   characteristics: ['cordless', '18v'], description: 'Cordless drill', dailyRate: 150, status: 'available',
   location: here,
   photoLabels: [{ label: 'drill', confidence: 0.95 }, { label: 'power tool', confidence: 0.85 }], ...o,
@@ -121,19 +121,19 @@ describe('rankMatches', () => {
 
   test('ties break by trust score, then distance', () => {
     const items = [
-      item({ id: 'low', trustScore: 3 }),
-      item({ id: 'high', trustScore: 5 }),
+      item({ id: 'low', lenderTrustScore: 3 }),
+      item({ id: 'high', lenderTrustScore: 5 }),
     ];
     expect(rankMatches(req(), items).map((m) => m.itemId)).toEqual(['high', 'low']);
     const near = [
-      item({ id: 'far2', trustScore: 4, location: km(0) }),
-      item({ id: 'near2', trustScore: 4, location: km(0) }),
+      item({ id: 'far2', lenderTrustScore: 4, location: km(0) }),
+      item({ id: 'near2', lenderTrustScore: 4, location: km(0) }),
     ];
     expect(rankMatches(req({ location: undefined }), near).length).toBe(2);
   });
 
   test('returns at most the top N', () => {
-    const items = Array.from({ length: 8 }, (_, n) => item({ id: `i${n}`, trustScore: n }));
+    const items = Array.from({ length: 8 }, (_, n) => item({ id: `i${n}`, lenderTrustScore: n }));
     expect(rankMatches(req(), items).length).toBe(5);
     expect(rankMatches(req(), items, { limit: 3 }).map((m) => m.itemId)).toEqual(['i7', 'i6', 'i5']);
   });

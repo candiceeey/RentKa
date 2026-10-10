@@ -1,4 +1,4 @@
-import { isComplete, itemStatusFor, newTrustScore, nextStatus } from '../src/stateMachine';
+import { INITIAL_TRUST_SCORE, isComplete, itemStatusFor, newTrustScore, nextStatus, ratingFieldsFor } from '../src/stateMachine';
 import { parseId } from '../src/idParse';
 
 test('happy path transitions', () => {
@@ -77,4 +77,10 @@ License No. N01-23-456789`);
     expect(p.confidence).toBe('low');
     expect(p.missing).toEqual(['fullName', 'birthdate', 'idNumber']);
   });
+});
+
+test('ratings are kept per role: the rated role picks the fields to update', () => {
+  expect(ratingFieldsFor('lender')).toEqual({ score: 'lenderTrustScore', count: 'lenderRatingCount' });
+  expect(ratingFieldsFor('borrower')).toEqual({ score: 'borrowerTrustScore', count: 'borrowerRatingCount' });
+  expect(newTrustScore(INITIAL_TRUST_SCORE, 0, 5)).toBe(5);
 });

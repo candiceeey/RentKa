@@ -95,7 +95,7 @@ export interface MatchResult {
   distanceKm: number | null;
   usedLabels: boolean;
   usedProximity: boolean;
-  trustScore: number;
+  lenderTrustScore: number;
   breakdown: { field: number; labels: number; proximity: number };
 }
 
@@ -116,7 +116,7 @@ export function matchScore(req: RequestDoc, item: ItemDoc, radiusKm = DEFAULT_RA
     distanceKm: distanceKm === null ? null : Math.round(distanceKm * 100) / 100,
     usedLabels,
     usedProximity,
-    trustScore: item.trustScore ?? 0,
+    lenderTrustScore: item.lenderTrustScore ?? 0,
     breakdown: { field, labels, proximity },
   };
 }
@@ -140,7 +140,7 @@ export function passesHardFilters(req: RequestDoc, item: ItemDoc): boolean {
 
 /**
  * Hard filters, then score, then top N.
- * Order: score desc, trust score desc, distance asc.
+ * Order: score desc, owner's lender trust score desc, distance asc.
  */
 export function rankMatches(req: RequestDoc, items: ItemDoc[], opts: RankOptions = {}): MatchResult[] {
   const { radiusKm = DEFAULT_RADIUS_KM, minScore = DEFAULT_MIN_SCORE, limit = DEFAULT_LIMIT } = opts;
@@ -151,7 +151,7 @@ export function rankMatches(req: RequestDoc, items: ItemDoc[], opts: RankOptions
     .sort(
       (a, b) =>
         b.score - a.score ||
-        b.trustScore - a.trustScore ||
+        b.lenderTrustScore - a.lenderTrustScore ||
         (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity),
     )
     .slice(0, limit);
