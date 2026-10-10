@@ -1,13 +1,15 @@
 import { useState } from 'react';
 
-import { ThemedText } from '@/components/themed-text';
+import { BackButton } from '@/components/ui/back-button';
 import { Button } from '@/components/ui/button';
+import { FormError } from '@/components/ui/form-error';
+import { FormTitle } from '@/components/ui/form-title';
 import { Screen } from '@/components/ui/screen';
 import { TextField } from '@/components/ui/text-field';
 import { authErrorMessage, useAuth } from '@/context/auth';
 import { validateProfile, type ProfileInput } from '@/core/userProfile';
 
-/** Shown when an account exists but its users/{uid} profile was never saved. */
+/** Shown when an account exists but its users/{uid} profile was never saved. Back signs out. */
 export default function CompleteProfileScreen() {
   const { user, saveProfile, signOut } = useAuth();
   const [form, setForm] = useState<ProfileInput>({ fullName: '', contact: '' });
@@ -34,33 +36,31 @@ export default function CompleteProfileScreen() {
 
   return (
     <Screen>
-      <ThemedText type="subtitle">Finish your profile</ThemedText>
-      <ThemedText themeColor="textSecondary">Signed in as {user?.email}. Add your details to continue.</ThemedText>
+      <BackButton onPress={signOut} />
+      <FormTitle title="Set Up Profile" subtitle={`Signed in as ${user?.email ?? 'your account'}`} />
 
       <TextField
-        label="Full name"
+        tone="surface"
+        label="Full Name"
+        placeholder="Enter your full name"
         value={form.fullName}
         onChangeText={set('fullName')}
         autoComplete="name"
         error={errors.fullName}
       />
       <TextField
-        label="Mobile number"
+        tone="surface"
+        label="Contact Number"
+        placeholder="09171234567"
         value={form.contact}
         onChangeText={set('contact')}
-        placeholder="09171234567"
         autoComplete="tel"
         keyboardType="phone-pad"
         error={errors.contact}
       />
-      {error ? (
-        <ThemedText type="small" themeColor="danger">
-          {error}
-        </ThemedText>
-      ) : null}
+      <FormError message={error} />
 
       <Button title="Save" onPress={submit} loading={busy} />
-      <Button title="Sign out" variant="secondary" onPress={signOut} disabled={busy} />
     </Screen>
   );
 }

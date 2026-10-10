@@ -1,24 +1,23 @@
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
+import { Radius, Spacing } from '@/constants/theme';
 import { useMode } from '@/context/mode';
 import { type Role } from '@/core/stateMachine';
 import { useTheme } from '@/hooks/use-theme';
 
 const OPTIONS: { value: Role; label: string }[] = [
-  { value: 'borrower', label: 'Borrower' },
   { value: 'lender', label: 'Lender' },
+  { value: 'borrower', label: 'Borrower' },
 ];
 
-/** Switches which side of the app is shown. Same account either way. */
+/** Lender / Borrower pill in the green app header. Same account either way. */
 export function ModeSwitch() {
   const { mode, setMode } = useMode();
   const theme = useTheme();
 
   return (
-    <ThemedView type="backgroundElement" style={styles.track}>
+    <View style={[styles.track, { backgroundColor: theme.onPrimarySoft }]}>
       {OPTIONS.map(({ value, label }) => {
         const selected = mode === value;
         return (
@@ -26,19 +25,25 @@ export function ModeSwitch() {
             key={value}
             accessibilityRole="button"
             accessibilityState={{ selected }}
+            hitSlop={Spacing.two}
             onPress={() => setMode(value)}
-            style={[styles.option, selected && { backgroundColor: theme.primary }]}>
-            <ThemedText type="smallBold" style={{ color: selected ? theme.onPrimary : theme.text }}>
+            style={[styles.option, selected && { backgroundColor: theme.surface }]}>
+            <ThemedText type="label" themeColor={selected ? 'primary' : 'onPrimary'}>
               {label}
             </ThemedText>
           </Pressable>
         );
       })}
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  track: { flexDirection: 'row', borderRadius: 12, padding: Spacing.one, gap: Spacing.one },
-  option: { flex: 1, minHeight: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  track: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    borderRadius: Radius.pill,
+    padding: Spacing.half,
+  },
+  option: { borderRadius: Radius.pill, paddingHorizontal: Spacing.three, paddingVertical: Spacing.one },
 });

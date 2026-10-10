@@ -1,36 +1,60 @@
-import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { Icon } from '@/components/ui/icon';
+import { ControlHeight, Radius, Spacing, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
-export type TextFieldProps = TextInputProps & {
-  label: string;
+export type TextFieldProps = Omit<TextInputProps, 'style'> & {
+  /** Shown above the input. Leave out for placeholder-only fields (login). */
+  label?: string;
+  /** Adds the red asterisk after the label. */
+  required?: boolean;
   error?: string;
+  /** surface: white, for fields on the cream page. muted: light grey, for labeled forms. */
+  tone?: 'surface' | 'muted';
 };
 
-export function TextField({ label, error, style, ...rest }: TextFieldProps) {
+export function TextField({ label, required, error, tone = 'muted', secureTextEntry, ...rest }: TextFieldProps) {
   const theme = useTheme();
+  const [hidden, setHidden] = useState(true);
 
   return (
     <View style={styles.wrap}>
-      <ThemedText type="smallBold">{label}</ThemedText>
-      <TextInput
-        accessibilityLabel={label}
-        placeholderTextColor={theme.textSecondary}
+      {label ? (
+        <ThemedText type="label">
+          {label}
+          {required ? <ThemedText type="label" themeColor="danger">*</ThemedText> : null}
+        </ThemedText>
+      ) : null}
+      <View
         style={[
-          styles.input,
+          styles.box,
           {
-            color: theme.text,
-            backgroundColor: theme.backgroundElement,
+            backgroundColor: tone === 'surface' ? theme.surface : theme.surfaceMuted,
             borderColor: error ? theme.danger : theme.border,
           },
-          style,
-        ]}
-        {...rest}
-      />
+        ]}>
+        <TextInput
+          accessibilityLabel={label ?? rest.placeholder}
+          placeholderTextColor={theme.placeholder}
+          secureTextEntry={secureTextEntry && hidden}
+          style={[styles.input, { color: theme.text }]}
+          {...rest}
+        />
+        {secureTextEntry ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={hidden ? 'Show password' : 'Hide password'}
+            hitSlop={Spacing.two}
+            onPress={() => setHidden((h) => !h)}>
+            <Icon name={hidden ? 'visibility' : 'visibility_off'} size={22} themeColor="placeholder" />
+          </Pressable>
+        ) : null}
+      </View>
       {error ? (
-        <ThemedText type="small" themeColor="danger">
+        <ThemedText type="caption" themeColor="danger">
           {error}
         </ThemedText>
       ) : null}
@@ -39,12 +63,15 @@ export function TextField({ label, error, style, ...rest }: TextFieldProps) {
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: Spacing.one },
-  input: {
-    minHeight: 48,
+  wrap: { gap: Spacing.two },
+  box: {
+    minHeight: ControlHeight,
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.three,
-    fontSize: 16,
+    gap: Spacing.two,
   },
+  input: { flex: 1, paddingVertical: Spacing.two, ...Type.body, lineHeight: undefined },
 });

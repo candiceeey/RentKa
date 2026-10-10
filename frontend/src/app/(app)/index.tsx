@@ -1,12 +1,10 @@
-import { StyleSheet } from 'react-native';
-
+import { AppHeader } from '@/components/app-header';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { TrustScoreCard } from '@/components/trust-score-card';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Screen } from '@/components/ui/screen';
 import { VerifyNotice } from '@/components/verify-notice';
-import { Spacing } from '@/constants/theme';
-import { useAuth } from '@/context/auth';
 import { useMode } from '@/context/mode';
 
 const CONTENT = {
@@ -23,35 +21,22 @@ const CONTENT = {
 } as const;
 
 export default function HomeScreen() {
-  const { profile } = useAuth();
   const { mode } = useMode();
   const content = CONTENT[mode];
-  const firstName = profile?.fullName?.trim().split(/\s+/)[0];
 
   return (
-    <Screen inTabs>
-      <ThemedText type="subtitle">{firstName ? `Hi, ${firstName}` : 'Hi'}</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        {mode === 'lender' ? 'Lender view' : 'Borrower view'} · change it in Profile
-      </ThemedText>
-
+    <Screen inTabs header={<AppHeader />}>
+      <TrustScoreCard />
       <VerifyNotice />
 
-      <ThemedView type="backgroundElement" style={styles.card}>
-        <ThemedText type="smallBold" style={styles.cardTitle}>
-          {content.title}
-        </ThemedText>
+      <Card>
+        <ThemedText type="subheading">{content.title}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           {content.body}
         </ThemedText>
         {/* Listing and request flows are a later build step. */}
         <Button title={`${content.action} (coming soon)`} disabled />
-      </ThemedView>
+      </Card>
     </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  card: { borderRadius: 12, padding: Spacing.three, gap: Spacing.two },
-  cardTitle: { fontSize: 18 },
-});

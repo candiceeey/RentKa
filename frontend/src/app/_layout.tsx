@@ -1,4 +1,9 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
+import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
+import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
+import { Inter_700Bold } from '@expo-google-fonts/inter/700Bold';
+import { useFonts } from 'expo-font';
+import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet } from 'react-native';
@@ -6,7 +11,6 @@ import { ActivityIndicator, StyleSheet } from 'react-native';
 import { ThemedView } from '@/components/themed-view';
 import { AuthProvider, useAuth } from '@/context/auth';
 import { ModeProvider } from '@/context/mode';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { useTheme } from '@/hooks/use-theme';
 
 SplashScreen.preventAutoHideAsync();
@@ -24,16 +28,20 @@ export default function RootLayout() {
 function RootNavigator() {
   const { stage } = useAuth();
   const theme = useTheme();
-  const base = useColorScheme() === 'dark' ? DarkTheme : DefaultTheme;
+  // Names must match Fonts in constants/theme.ts. On a load error the app falls back to the system font.
+  const [fontsLoaded, fontError] = useFonts({ Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold });
+  const fontsReady = fontsLoaded || !!fontError;
   const navTheme = {
-    ...base,
-    colors: { ...base.colors, primary: theme.primary, background: theme.background, text: theme.text },
+    ...DefaultTheme,
+    colors: { ...DefaultTheme.colors, primary: theme.primary, background: theme.background, text: theme.text },
   };
 
-  // Keep the splash screen up until we know whether someone is signed in.
+  // Keep the splash screen up until fonts are in and we know whether someone is signed in.
   useEffect(() => {
-    if (stage !== 'loading') SplashScreen.hideAsync();
-  }, [stage]);
+    if (fontsReady && stage !== 'loading') SplashScreen.hideAsync();
+  }, [fontsReady, stage]);
+
+  if (!fontsReady) return null;
 
   if (stage === 'loading') {
     return (

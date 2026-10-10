@@ -1,5 +1,6 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
+import { Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function AppLayout() {
@@ -7,17 +8,21 @@ export default function AppLayout() {
 
   return (
     <NativeTabs
-      backgroundColor={theme.background}
-      indicatorColor={theme.backgroundElement}
-      labelStyle={{ selected: { color: theme.text } }}>
+      backgroundColor={theme.surface}
+      indicatorColor={theme.primarySoft}
+      iconColor={{ default: theme.textSecondary, selected: theme.primary }}
+      labelStyle={{
+        default: { color: theme.textSecondary, fontFamily: Type.caption.fontFamily },
+        selected: { color: theme.primary, fontFamily: Type.label.fontFamily },
+      }}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="house" md="home" />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="rentals">
-        <NativeTabs.Trigger.Label>Rentals</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="arrow.left.arrow.right" md="swap_horiz" />
+      <NativeTabs.Trigger name="requests">
+        <NativeTabs.Trigger.Label>Requests</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="doc.text" md="description" />
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="profile">

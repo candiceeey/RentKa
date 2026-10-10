@@ -14,4 +14,6 @@
 - Sign-up fields live in one constant, `SIGNUP_FIELDS` in rentka-core/src/userProfile.ts; rules test R04d fails if it drifts from the `users` create rule.
 - Lender/borrower is a UI switch saved on the phone (expo-secure-store). Every account gets both roles; the active side is never written to Firestore.
 - App foundation added no native packages, so no rebuild of the dev build was needed.
+- UI follows docs/prototype: all colors, fonts (Inter), spacing, radii and shadows live in frontend/src/constants/theme.ts; screens only compose shared components. Light theme only, as in the prototype.
+- Prototype items left out on purpose so far: Google sign-in, "Login as" / "Sign up as" pickers (one account has both roles; the header switch replaces them), forgot password, terms checkbox.
 - `users` create rule is an allowlist (fullName, contact, email, roles, fcmToken, createdAt) instead of only blocking verified and trustScore, so a client cannot fake isAdult or ratingCount.

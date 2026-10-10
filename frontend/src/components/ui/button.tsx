@@ -1,36 +1,38 @@
 import { ActivityIndicator, Pressable, StyleSheet, type PressableProps } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Spacing } from '@/constants/theme';
+import { ControlHeight, Radius, Shadow, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   title: string;
-  variant?: 'primary' | 'secondary';
+  /** primary: filled green. outline: white with a green border. */
+  variant?: 'primary' | 'outline';
   loading?: boolean;
 };
 
 export function Button({ title, variant = 'primary', loading = false, disabled, ...rest }: ButtonProps) {
   const theme = useTheme();
   const primary = variant === 'primary';
-  const textColor = primary ? theme.onPrimary : theme.primary;
+  const off = disabled || loading;
 
   return (
     <Pressable
       accessibilityRole="button"
-      disabled={disabled || loading}
+      disabled={off}
       style={({ pressed }) => [
         styles.base,
         primary
           ? { backgroundColor: theme.primary }
-          : { borderWidth: 1, borderColor: theme.primary },
-        (pressed || disabled || loading) && styles.dimmed,
+          : { backgroundColor: theme.surface, borderWidth: 1.5, borderColor: theme.primary },
+        primary && !off && Shadow.button,
+        (pressed || off) && styles.dimmed,
       ]}
       {...rest}>
       {loading ? (
-        <ActivityIndicator color={textColor} />
+        <ActivityIndicator color={primary ? theme.onPrimary : theme.primary} />
       ) : (
-        <ThemedText type="smallBold" style={{ color: textColor, fontSize: 16 }}>
+        <ThemedText type="bodyBold" themeColor={primary ? 'onPrimary' : 'primary'}>
           {title}
         </ThemedText>
       )}
@@ -40,8 +42,8 @@ export function Button({ title, variant = 'primary', loading = false, disabled, 
 
 const styles = StyleSheet.create({
   base: {
-    minHeight: 48,
-    borderRadius: 12,
+    minHeight: ControlHeight,
+    borderRadius: Radius.md,
     paddingHorizontal: Spacing.three,
     alignItems: 'center',
     justifyContent: 'center',
