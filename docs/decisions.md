@@ -12,8 +12,17 @@
 - Rules tests run in the emulator under the fake project id `demo-rentka`, so they cannot touch the real project and need no login.
 - Synced core copies (frontend/src/core, backend/functions/src/core) are committed, so a fresh clone builds without running sync-core.bat.
 - Sign-up fields live in one constant, `SIGNUP_FIELDS` in rentka-core/src/userProfile.ts; rules test R04d fails if it drifts from the `users` create rule.
-- Lender/borrower is a UI switch saved on the phone (expo-secure-store). Every account gets both roles; the active side is never written to Firestore.
+- Roles are chosen at sign-up (Lender / Borrower / Both) and stored in `roles`; a role can be added later, never removed. The active side is a UI switch saved on the phone (expo-secure-store), limited to the roles the account holds. (Replaces "every account gets both roles".)
+- Rules check the role when posting: lender role for items, borrower role for requests, plus the verified claim.
+- Trust scores are per role (`lenderTrustScore`, `borrowerTrustScore` and their counts), function-written, started by `verifyIdentity` at 3.00 / 0.
+- Verification has two outcomes only, verified or rejected. No "flagged", no manual approval. Lockout after more than 5 attempts in 24 hours lifts by itself.
+- ID type, ID number and birthdate are never stored. The duplicate check uses HMAC-SHA256 of "idType:normalized number" with the secret `ID_HMAC_SECRET` (Firebase Secret Manager, never in the repo).
+- ID step is one screen holding the fields in memory (form -> check -> result). It opens once right after sign-up and can be left; unverified users can enter the app but cannot post.
+- `verifyIdentity` deployed 2026-10-10 with a 60-second code-load timeout (`FUNCTIONS_DISCOVERY_TIMEOUT=60`), because the default 10 seconds timed out on this machine. Artifact cleanup policy: images older than 1 day are deleted.
+- Liveness check is planned, not built: on-device ML Kit Face Detection, pass/fail only, built with the ML Kit module after the lender, borrower and rental flows work. `LIVENESS_REQUIRED` in rentka-core is off until then. Limitation: it shows a live person is present, not that they own the ID. App Check (Play Integrity) for `verifyIdentity` is a trade-off to decide at that point.
+- Tabs follow the prototype per role (Lender: Home, Listings, Requests, Messages; Borrower: Home, Requests, Messages); Profile is behind the header avatar.
+- Login keeps Forgot Password and the Terms checkbox; Google sign-in and the "Login as" picker are dropped. Terms text in the app is a placeholder.
 - App foundation added no native packages, so no rebuild of the dev build was needed.
 - UI follows docs/prototype: all colors, fonts (Inter), spacing, radii and shadows live in frontend/src/constants/theme.ts; screens only compose shared components. Light theme only, as in the prototype.
-- Prototype items left out on purpose so far: Google sign-in, "Login as" / "Sign up as" pickers (one account has both roles; the header switch replaces them), forgot password, terms checkbox.
+- Prototype items left out on purpose: Google sign-in and the "Login as" picker (role switching is from the header).
 - `users` create rule is an allowlist (fullName, contact, email, roles, fcmToken, createdAt) instead of only blocking verified and trustScore, so a client cannot fake isAdult or ratingCount.

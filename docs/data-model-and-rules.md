@@ -6,14 +6,21 @@ Stack: React Native + Expo (dev build), Firebase (Auth, Firestore, Storage, Clou
 
 ## 1. Design decisions (from the panel + adviser changes)
 
-1. ID scan, OCR pre-fill, and selfie happen **on the device**. Parsed ID data is kept **only in local secure storage**. The cloud receives only `verified`, `isAdult`, a timestamp, and an HMAC hash for duplicate detection. No `ids/` path in Storage.
-2. Verification is **automatic** (Cloud Function `verifyIdentity`). Admin only handles flagged cases, disputes, and moderation.
+1. The ID step happens **on the device**: an editable form (full name, birthdate, ID type, ID number) that the ML Kit scan will pre-fill later. The ID fields are sent once to `verifyIdentity` and are **never stored** on the phone, in Firestore or in Storage. The cloud keeps only `verified`, `isAdult`, a timestamp, and an HMAC hash for duplicate detection. No `ids/` path in Storage.
+2. Verification is **automatic** (Cloud Function `verifyIdentity`) with only two outcomes: **verified** or **rejected** (with a reason). There is no "flagged" outcome and no manual approval. Admin handles only disputes and moderation.
+   - Required for every user at registration, whatever the role. Adding a role later needs no second check.
+   - Until `verified == true` a user cannot post an item, post a request, or accept or start a rental (enforced in the rules and in the functions).
+   - Rejections: invalid details; under 18; name on the ID does not match the account name ("Name doesn't match your account", compared loosely: case, accents, spacing, "Last, First" order and a missing middle name are ignored); ID already registered ("This ID is already registered."); more than 5 attempts in 24 hours (temporary lockout, "Try again in X hours", lifts by itself).
+   - Planned (not built): an on-device **liveness check** between the form and the result. See `docs/build-status.md`.
 3. AI auto-fill: ML Kit labels (>= 0.70) + OCR text become an editable description and editable characteristic chips (brand, model). Matching uses the confirmed category/subcategory/chips (Field) and the raw photo labels (Labels), never the free-text description.
 4. Item is **hidden from listings until returned** (`items.status`).
 5. Every item has a **unique attribute** (IMEI, serial number, or distinguishing mark).
 6. **1 lender per match per item.** One request is accepted by one lender, and one item has one active rental.
-7. Rentals are **open-ended**. Deposit covers 7 days, with extension by top-up.
+7. Rentals are **open-ended**: a start date only, no end date and no rental total. Deposit (daily rate x 7) covers 7 days, with extension by top-up.
 8. All rental state changes go through **one callable function** (`rentalAction`). Clients never write status fields directly.
+9. **Roles are chosen.** At registration the user picks Lender, Borrower or Both, and `roles` holds only that choice. The missing role can be added later from Profile > Settings; a role is never removed.
+10. **Ratings are per role.** Each user has a lender trust score and a borrower trust score. A rating updates the role the rated person had in that rental. The two are never combined or shown together as one score.
+11. **Messages are per role.** The inbox shows only chats for the active role (lender mode: rentals where the user is the lender; borrower mode: where they are the borrower).
 
 ---
 
@@ -22,17 +29,20 @@ Stack: React Native + Expo (dev build), Firebase (Auth, Firestore, Storage, Clou
 ### `users/{uid}`
 ```
 fullName, contact, email
-roles: ["lender","borrower"]
+roles: ["lender"] | ["borrower"] | ["lender","borrower"]   // only what the user chose; can grow, never shrink
 verified: bool            // set by verifyIdentity only
-isAdult: bool
-verifiedAt: timestamp
-idType: "PhilSys" | "DriversLicense" | "StudentID" | ...
-trustScore: number        // starts 3.00, function-written only
-ratingCount: number       // function-written only
+isAdult: bool             // set by verifyIdentity only
+verifiedAt: timestamp     // set by verifyIdentity only
+lenderTrustScore: number      // starts 3.00, function-written only
+lenderRatingCount: number     // starts 0, function-written only
+borrowerTrustScore: number    // starts 3.00, function-written only
+borrowerRatingCount: number   // starts 0, function-written only
 fcmToken: string
 createdAt
 ```
-Client may edit only: `fullName, contact, fcmToken`. Everything else is function-written.
+Client may write at sign-up only: `fullName, contact, email, roles, fcmToken, createdAt` (the `SIGNUP_FIELDS` constant in `rentka-core/src/userProfile.ts`).
+Client may edit later only: `fullName, contact, fcmToken`, and `roles` by adding a valid value. Everything else is function-written.
+Not stored anywhere: ID type, ID number, birthdate, gender, address, avatar.
 
 ### `items/{itemId}`
 ```
@@ -86,7 +96,7 @@ Score = Field x 0.40 + Labels x 0.30 + Proximity x 0.30.
 - Labels: only labels with confidence >= 0.70 and not in the generic list (Product, Material, Room, Tool, ...). Score = share of the borrower's labels found on the item.
 - Fallbacks: labels used only if BOTH sides have usable labels. Otherwise Field 0.55 / Proximity 0.45. No location: Field 0.571 / Labels 0.429. Neither: Field only.
 - Proximity = max(0, 1 - km/10).
-- Ranking: score desc, then lender trustScore desc, then distance asc. Drop scores below 0.40. Show top 5.
+- Ranking: score desc, then the item owner's `lenderTrustScore` desc, then distance asc. Drop scores below 0.40. Show top 5.
 - Weights live in one config (`WEIGHTS` in matching.ts) so they can be tuned after user testing.
 
 ### `rentals/{rentalId}`
@@ -123,7 +133,7 @@ owedByBorrower     // if balance < 0
 ```
 
 ### `reviews/{reviewId}`  (function-written)
-`rentalId, fromUid, toUid, rating (1-5), comment, createdAt`. Unique per (rentalId, fromUid) so a retry cannot double-count.
+`rentalId, fromUid, toUid, ratedRole ("lender" | "borrower"), rating (1-5), comment, createdAt`. Unique per (rentalId, fromUid) so a retry cannot double-count. One overall rating per review; per-category ratings are future work.
 
 ### `transactionLogs/{logId}`  (append-only, function-written)
 `rentalId, actorUid, action, fromStatus, toStatus, at`
@@ -131,7 +141,7 @@ owedByBorrower     // if balance < 0
 ### Server-only collections (no client access)
 - `uniqueIds/{hash}`: `{ itemId }`. Blocks the same unit being listed twice. Hash = HMAC of `type + normalized value`.
 - `idHashes/{hash}`: `{ uid }`. Blocks duplicate ID registration. Hash = HMAC of ID number with a server secret.
-- `verifyAttempts/{uid}`: rate limiting for verification.
+- `verifyAttempts/{uid}`: `{ times: [timestamp] }`, the attempts in the last 24 hours, for the automatic lockout.
 
 ---
 
@@ -152,7 +162,7 @@ pending ──accept──> accepted ──handoff──> active ──return─
 | `requestExtension` | borrower | active | Uploads top-up proof. |
 | `approveExtension` | lender | active | coveredUntil += 7d, depositTotal += amount, overdue = false. |
 | `confirmReturn` | lender | active -> returned | Requires after photos. **Item becomes available again.** Runs settlement. |
-| `rate` | borrower / lender | returned -> completed (when both rated) | Trust score update in a transaction, idempotent. |
+| `rate` | borrower / lender | returned -> completed (when both rated) | Updates the rated person's score **for the role they had in this rental** (`lenderTrustScore`/`lenderRatingCount` or `borrowerTrustScore`/`borrowerRatingCount`) with (old x count + rating) / (count + 1), in a transaction, idempotent. |
 | `cancel` | either | pending / accepted -> cancelled | Item and request unlocked, matches reopened. |
 | `dispute` | either | active / returned -> disputed | Admin queue. |
 
@@ -180,7 +190,7 @@ If the item is never returned: the admin can mark it returned or disputed, and t
 
 | Function | Trigger | Purpose |
 |---|---|---|
-| `verifyIdentity` | callable | Validate fields, age >= 18, HMAC duplicate check, rate limit, set `verified` claim. Outcomes: verified / rejected(reason) / flagged. |
+| `verifyIdentity` | callable | **Deployed.** Validate fields, age >= 18, loose name match with the account, HMAC duplicate check, 24-hour lockout after 5 attempts, set the `verified` claim and the starting ratings. Outcomes: verified / rejected(reason). Decision logic is `decideVerification` in `rentka-core/src/identity.ts`. |
 | `onItemCreate` | Firestore onCreate (items) | Reserve `uniqueIds` hash, match against open requests, write matches, notify. |
 | `onRequestCreate` | Firestore onCreate (requests) | Match against available items, write matches, notify. |
 | `rentalAction` | callable | The state machine above (single switch). |
@@ -204,18 +214,35 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
+    // 1 or 2 roles, only lender / borrower, no duplicates.
+    function validRoles(roles) {
+      return roles is list && roles.size() >= 1 && roles.size() <= 2
+        && roles.hasOnly(['lender','borrower'])
+        && roles.toSet().size() == roles.size();
+    }
+    // The signed-in user's own roles, read from their users document.
+    function hasRole(role) {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny([role]);
+    }
+
     match /users/{uid} {
       allow read: if signedIn();
-      // Allowlist: verified, isAdult, verifiedAt, idType, trustScore, ratingCount are function-written.
+      // Allowlist: verified, isAdult, verifiedAt and the four rating fields
+      // (lenderTrustScore, lenderRatingCount, borrowerTrustScore, borrowerRatingCount) are function-written.
       allow create: if isOwner(uid)
-        && request.resource.data.keys().hasOnly(['fullName','contact','email','roles','fcmToken','createdAt']);
-      allow update: if isOwner(uid) && only(['fullName','contact','fcmToken']);
+        && request.resource.data.keys().hasOnly(['fullName','contact','email','roles','fcmToken','createdAt'])
+        && validRoles(request.resource.data.roles);
+      // roles may only gain a valid value: every role already held must remain.
+      allow update: if isOwner(uid) && only(['fullName','contact','fcmToken','roles'])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['roles'])
+            || (validRoles(request.resource.data.roles)
+                && request.resource.data.roles.hasAll(resource.data.get('roles', []))));
       allow delete: if false;
     }
 
     match /items/{itemId} {
       allow read: if verified();
-      allow create: if verified()
+      allow create: if verified() && hasRole('lender')
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.status == 'available';
       allow update: if verified()
@@ -237,7 +264,7 @@ service cloud.firestore {
 
     match /requests/{requestId} {
       allow read: if verified();
-      allow create: if verified()
+      allow create: if verified() && hasRole('borrower')
         && request.resource.data.borrowerId == request.auth.uid
         && request.resource.data.status == 'open';
       allow update: if verified()
@@ -327,7 +354,10 @@ There is intentionally **no `ids/` path**: ID images never reach the cloud.
 Log each as: Test ID | Scenario | Expected | Actual | Pass/Fail.
 
 - Unverified user cannot create an item or request.
-- Client cannot set `verified`, `trustScore`, or `status`.
+- Borrower-only account cannot create an item; lender-only account cannot create a request.
+- Roles on create: missing, empty, unknown or duplicated values are denied; lender, borrower or both are allowed.
+- A role can be added later; a role cannot be removed; roles and a protected field cannot change in one write.
+- Client cannot set `verified`, the four rating fields, or `status`.
 - Non-participant cannot read a rental, its chat, or its payment proof.
 - Borrower cannot read `items/{id}/private/identifiers` before a rental is accepted.
 - Two lenders cannot both accept the same request.

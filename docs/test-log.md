@@ -3,6 +3,20 @@
 |------|-----------------|--------|-------|
 | 2026-10-09 | Firestore and Storage security rules in the Firebase emulator (`cd backend && npm run test:rules`) | 17 of 17 passed | Emulator only (project `demo-rentka`). The same rules files were deployed to `rentka` afterwards on 2026-10-09. |
 | 2026-10-09 | Rules tests rerun after adding R04d; rentka-core tests with new userProfile tests | 18 of 18 and 55 of 55 passed | App foundation type-checks and bundles for Android; not yet tested on a phone. |
+| 2026-10-10 | rentka-core tests (roles, per-role ratings, ID form, verification decision) and rules tests (roles, role needed to post, rating fields, chat) | 69 of 69 and 26 of 26 passed | Rules and `verifyIdentity` deployed afterwards. An unauthenticated call to the live function returns "Sign in first." Signed-in verification not yet tested on a phone. |
+
+## Security rules tests added 2026-10-10 (emulator)
+Changed: R01 now uses an unverified account that has both roles; R04 and R06 cover the four rating fields; R09 and R10 also cover signed-out and both participants.
+| Test ID | Scenario | Expected | Actual | Pass/Fail |
+|---|---|---|---|---|
+| R09b | Inbox query by role (`lenderId` / `borrowerId` equal to own uid); query without the filter; another user's query | Allowed; denied; denied | Allowed; denied; denied | Pass |
+| R13 | Create profile with roles missing, empty, unknown, mixed with unknown, duplicated, or not a list | Denied | Denied | Pass |
+| R13b | Create profile with roles lender, borrower, or both | Allowed | Allowed | Pass |
+| R14 | Add the missing role later (borrower adds lender; lender adds borrower) | Allowed | Allowed | Pass |
+| R15 | Remove a role, empty the list, swap the role, add an unknown or duplicate role, change another user's roles | Denied | Denied | Pass |
+| R16 | Change roles together with `verified` or a rating field in one write | Denied | Denied | Pass |
+| R17 | Verified borrower-only account creates an item; verified lender-only account creates a request | Denied | Denied | Pass |
+| R18 | Borrower adds the lender role, then creates an item | Allowed | Allowed | Pass |
 
 ## Security rules tests (2026-10-09, emulator)
 | Test ID | Scenario | Expected | Actual | Pass/Fail |

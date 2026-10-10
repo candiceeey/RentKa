@@ -10,7 +10,7 @@ RentKa is a mobile peer-to-peer item rental app for Butuan City (capstone projec
 
 ## Stack
 - `frontend/`: React Native + Expo SDK 57, TypeScript, Expo Router (`src/app`), development build (NOT Expo Go), Android only, package `com.rentka.app`.
-- `backend/`: Firebase (real Firestore and Storage rules deployed 2026-10-09; rules tests and a Functions TypeScript scaffold exist; no functions deployed yet): Firestore (Singapore), Storage (US-EAST1), Auth (email/password), Cloud Functions 2nd gen. Project id `rentka`. Blaze plan is on: avoid anything that could run up costs.
+- `backend/`: Firebase (Firestore and Storage rules deployed; `verifyIdentity` function deployed 2026-10-10 in asia-southeast1; other functions not written yet): Firestore (Singapore), Storage (US-EAST1), Auth (email/password), Cloud Functions 2nd gen. Project id `rentka`. Blaze plan is on: avoid anything that could run up costs.
 - `rentka-core/`: pure TypeScript logic with tests (matching, description, ID parsing, validators, settlement, state machine). After editing `rentka-core\src`, run `sync-core.bat` (repo root): it mirrors the files into `frontend\src\core` and `backend\functions\src\core`. Never edit those copies.
 - Use the React Native Firebase **modular API** (`getAuth`, `getFirestore`, `doc`, `setDoc`...).
 - ML Kit (image labeling + text recognition) via our own Expo local native module (Kotlin). Third-party wrappers were rejected.
@@ -27,11 +27,15 @@ RentKa is a mobile peer-to-peer item rental app for Butuan City (capstone projec
 ## Product rules (do not change without asking)
 - Match Score = Field×0.40 + Labels×0.30 + Proximity×0.30. Full rules (fallback weights, generic label list, hard filters, ranking, min score 0.40, top 5) are in `docs/data-model-and-rules.md` and `rentka-core/src/matching.ts`. Keep weights in the `WEIGHTS` config.
 - Photo auto-fill: ML Kit labels/text fill an **editable** description plus editable characteristic chips. Always store raw `photoLabels` and `autofillSuggested` untouched; Field uses the confirmed fields, Labels uses raw `photoLabels`, and the free-text description is never matched.
-- ID verification runs on-device (GCash-style scan, pre-fill). Raw ID data is never uploaded. The cloud stores only verified, isAdult, timestamp, and an HMAC hash. Verification is automatic, with no admin approval. Be honest in the paper: no face matching.
+- Roles: the user chooses Lender, Borrower or Both at registration. `roles` holds only that choice; a role can be added later from Profile, never removed. Posting an item needs the lender role, posting a request needs the borrower role (rules enforce both).
+- ID verification is required for every user at registration, whatever the role. The ID step is an editable form (name, birthdate, ID type, ID number) that the ML Kit scan will pre-fill later. The fields are sent once to `verifyIdentity` and never stored anywhere. The cloud stores only verified, isAdult, timestamp, and an HMAC hash. Verification is automatic with two outcomes only: verified, or rejected with a reason (no "flagged", no admin approval). Until verified, a user cannot post an item or request, or accept or start a rental. Be honest in the paper: no face matching.
+- Liveness check is planned, not built (see `docs/build-status.md` step 6). Do not block registration on it until the module exists.
 - An item is hidden from listings until returned. One lender per match per item. Each item has a unique attribute (e.g. IMEI for phones, Luhn-validated).
 - Rentals can be open-ended. Deposit = dailyRate × 7 and covers 7 days. At day 7 the app prompts return or extend (top up), and the lender is alerted when the deadline passes. daysUsed = ceil(hours/24), min 1. Settlement is refund / even / owed. Payment happens outside the app: the system records amounts and statuses only.
 - All rental state changes go through one callable function, `rentalAction`.
-- Trust score = (old×count + rating)/(count+1).
+- Trust score is per role: lenderTrustScore and borrowerTrustScore (each with its count, start 3.00 / 0, function-written). A rating updates the role the rated person had in that rental: (old×count + rating)/(count+1). Never show a combined score. Reviews are one 1-5 rating plus a comment.
+- The inbox shows only chats for the active role. Tabs follow the prototype per role (Lender: Home, Listings, Requests, Messages; Borrower: Home, Requests, Messages).
+- Not in the data model: ID type, ID number, date of birth, gender, address, avatar.
 
 ## Working agreements
 - Use plan mode for anything touching more than a few files.
@@ -42,7 +46,8 @@ RentKa is a mobile peer-to-peer item rental app for Butuan City (capstone projec
 
 ## Known open items
 - Check that Storage rules can read Firestore (cross-service permission) with a real payment-proof upload from the app.
-- Set the Google Cloud budget alert.
+- Deploying functions on this machine needs `FUNCTIONS_DISCOVERY_TIMEOUT=60` (the default 10-second code-load check timed out).
+- Terms and Conditions text in the app is a placeholder; the logo is a placeholder until the image file is added.
 - Verify the Blaze payment/hold status.
 
 ## Reference docs

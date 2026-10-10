@@ -6,3 +6,14 @@
 - Automatic verification replaces admin approval.
 - Matching refinements (hard filters, fallback weights, generic label exclusion, ranking tiebreakers); weights described as initial heuristics, tunable.
 - Chapter 4 AI metric: autofill acceptance rate (fields accepted vs edited) from autofillSuggested vs final values.
+- Roles: the user chooses Lender, Borrower or Both at registration; the other role can be added later, never removed. Security rules require the lender role to list an item and the borrower role to post a request.
+- Trust score is kept per role (lender trust score, borrower trust score), each starting at 3.00. A rating updates the role the rated person had in that rental. Same formula: (old x count + rating) / (count + 1). The two are never combined.
+- Matching tiebreaker uses the item owner's lender trust score.
+- Reviews: one overall 1 to 5 rating plus a comment. Per-category ratings (on-time, communication, item care, response) are future work.
+- Messages: the inbox shows only the chats of the active role.
+- ID verification is required for every user at registration and is fully automatic: the result is verified or rejected with a reason. There is no "flagged" outcome and no admin approval; admin handles only disputes and moderation. Rejection reasons: invalid details, under 18, name does not match the account (loose comparison), ID already registered, and a temporary lockout after more than 5 attempts in 24 hours that lifts by itself.
+- ID step is an editable form (name, birthdate, ID type, ID number) that the ML Kit scan will pre-fill. Nothing from the ID is stored; the cloud keeps verified, isAdult, timestamp and an HMAC hash. ID type is not stored either.
+- Not collected or stored: gender, address, avatar. Date of birth is used only for the age check and is not stored.
+- Rentals are open-ended in every screen: start date only, and the deposit (daily rate x 7) replaces rental totals. The prototype's end dates and totals are not used.
+- Prototype screens replaced: Verify / Review / Registration Submitted become ID form, check details, instant result. Dropped: "photo holding your ID", "Pending Admin Review", the 24-hour wording, Google sign-in, the "Login as" picker.
+- Planned liveness check (not built yet): ML Kit Face Detection on the device, one or two random actions (blink, turn head). No images or face data are saved or uploaded; only pass/fail is sent. Limitation to state: liveness shows that a live person is present, not that they own the ID. There is still no face matching. Because the result comes from the phone, Firebase App Check (Play Integrity) is planned as a safeguard, to be decided when it is built.
