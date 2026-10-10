@@ -9,18 +9,35 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
+    // 1 or 2 roles, only lender / borrower, no duplicates.
+    function validRoles(roles) {
+      return roles is list && roles.size() >= 1 && roles.size() <= 2
+        && roles.hasOnly(['lender','borrower'])
+        && roles.toSet().size() == roles.size();
+    }
+    // The signed-in user's own roles, read from their users document.
+    function hasRole(role) {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.roles.hasAny([role]);
+    }
+
     match /users/{uid} {
       allow read: if signedIn();
-      // Allowlist: verified, isAdult, verifiedAt, idType, trustScore, ratingCount are function-written.
+      // Allowlist: verified, isAdult, verifiedAt and the four rating fields
+      // (lenderTrustScore, lenderRatingCount, borrowerTrustScore, borrowerRatingCount) are function-written.
       allow create: if isOwner(uid)
-        && request.resource.data.keys().hasOnly(['fullName','contact','email','roles','fcmToken','createdAt']);
-      allow update: if isOwner(uid) && only(['fullName','contact','fcmToken']);
+        && request.resource.data.keys().hasOnly(['fullName','contact','email','roles','fcmToken','createdAt'])
+        && validRoles(request.resource.data.roles);
+      // roles may only gain a valid value: every role already held must remain.
+      allow update: if isOwner(uid) && only(['fullName','contact','fcmToken','roles'])
+        && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['roles'])
+            || (validRoles(request.resource.data.roles)
+                && request.resource.data.roles.hasAll(resource.data.get('roles', []))));
       allow delete: if false;
     }
 
     match /items/{itemId} {
       allow read: if verified();
-      allow create: if verified()
+      allow create: if verified() && hasRole('lender')
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.status == 'available';
       allow update: if verified()
@@ -42,7 +59,7 @@ service cloud.firestore {
 
     match /requests/{requestId} {
       allow read: if verified();
-      allow create: if verified()
+      allow create: if verified() && hasRole('borrower')
         && request.resource.data.borrowerId == request.auth.uid
         && request.resource.data.status == 'open';
       allow update: if verified()
