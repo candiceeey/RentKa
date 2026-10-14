@@ -21,7 +21,12 @@
 - `verifyIdentity` deployed 2026-10-10 with a 60-second code-load timeout (`FUNCTIONS_DISCOVERY_TIMEOUT=60`), because the default 10 seconds timed out on this machine. Artifact cleanup policy: images older than 1 day are deleted.
 - Liveness check is planned, not built: on-device ML Kit Face Detection, pass/fail only, built with the ML Kit module after the lender, borrower and rental flows work. `LIVENESS_REQUIRED` in rentka-core is off until then. Limitation: it shows a live person is present, not that they own the ID. App Check (Play Integrity) for `verifyIdentity` is a trade-off to decide at that point.
 - Tabs follow the prototype per role (Lender: Home, Listings, Requests, Messages; Borrower: Home, Requests, Messages); Profile is behind the header avatar.
-- Login keeps Forgot Password; Google sign-in and the "Login as" picker are dropped.
+- Login keeps Forgot Password; the "Login as" picker is dropped (role switching is from the header).
+- 2026-10-14: Google sign-in is back ("Continue with Google" on Login and Register, then Complete your profile), via `@react-native-google-signin/google-signin` in the stage-2 native rebuild.
+- 2026-10-14: email verification uses the free Firebase email link, required before the ID step and checked by `verifyIdentity` (`email_verified` in the login token). 6-digit code only if time allows.
+- 2026-10-14: ID step order is ID type -> scan -> face check -> editable details (ID number, name, address, sex, birthdate) -> review -> result -> sign out to Login. Built in two stages: stage 1 without native code (manual entry), stage 2 one rebuild adding Google sign-in and the ML Kit module. Address and sex never leave the phone.
+- 2026-10-14: dropdowns ("Sign up as", ID type, Sex) are a JS bottom-sheet `Select` component, no native package.
+- A user who leaves the ID step or is rejected can still log in and use the app in limited mode (no posting, "Verify now").
 - The Terms checkbox is asked once, at registration, not at every sign-in. The Terms and Privacy Notice text (last updated 2026-10-14) lives in one file, frontend/src/constants/terms.ts.
 - App foundation added no native packages, so no rebuild of the dev build was needed.
 - UI follows docs/prototype: all colors, fonts (Inter), spacing, radii and shadows live in frontend/src/constants/theme.ts; screens only compose shared components. Light theme only, as in the prototype.

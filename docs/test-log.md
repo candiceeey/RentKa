@@ -5,6 +5,7 @@
 | 2026-10-09 | Rules tests rerun after adding R04d; rentka-core tests with new userProfile tests | 18 of 18 and 55 of 55 passed | App foundation type-checks and bundles for Android; not yet tested on a phone. |
 | 2026-10-10 | rentka-core tests (roles, per-role ratings, ID form, verification decision) and rules tests (roles, role needed to post, rating fields, chat) | 69 of 69 and 26 of 26 passed | Rules and `verifyIdentity` deployed afterwards. An unauthenticated call to the live function returns "Sign in first." Signed-in verification not yet tested on a phone. |
 | 2026-10-14 | rentka-core tests after moving the ID checks to the phone: SHA-256 against published vectors and Node crypto (lengths 0 to 130, non-ASCII), request contains no raw ID data, server accepts only a hex hash plus three booleans, decision order | 76 of 76 passed | `verifyIdentity` redeployed; an unauthenticated call still returns "Sign in first." Signed-in path not yet tested on a phone. |
+| 2026-10-14 | Registration stage 1: rentka-core tests for address and sex (form validation, OCR parsing, never in the request); rules tests rerun | 80 of 80 and 26 of 26 passed | `verifyIdentity` redeployed with the verified-email requirement. App type-checks and bundles; not yet tested on a phone. |
 
 ## Security rules tests added 2026-10-10 (emulator)
 Changed: R01 now uses an unverified account that has both roles; R04 and R06 cover the four rating fields; R09 and R10 also cover signed-out and both participants.
