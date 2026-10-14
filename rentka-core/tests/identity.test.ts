@@ -9,7 +9,8 @@ const NOW = new Date('2026-10-10T08:00:00Z');
 const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 60 * 60 * 1000);
 
 const form = (over: Partial<IdForm> = {}): IdForm => ({
-  fullName: 'Ana Santos Cruz', birthdate: '2000-01-31', idType: 'PhilSys', idNumber: '1234-5678-9012-3456', ...over,
+  fullName: 'Ana Santos Cruz', birthdate: '2000-01-31', idType: 'PhilSys', idNumber: '1234-5678-9012-3456',
+  address: 'Purok 2, Libertad, Butuan City', sex: 'Female', ...over,
 });
 
 const PASS: DeviceChecks = { formValid: true, isAdult: true, nameMatches: true };
@@ -38,8 +39,9 @@ test('validateIdForm checks each field and the number format per ID type', () =>
   expect(validateIdForm(form({ idType: 'Passport', idNumber: 'p1234567a' }), NOW)).toEqual({});
   expect(validateIdForm(form({ idType: 'Passport', idNumber: '123456789' }), NOW).idNumber).toBeDefined();
   expect(validateIdForm(form({ idType: 'DriversLicense' }), NOW).idNumber).toBeDefined();
-  expect(Object.keys(validateIdForm({ fullName: 'Ana', birthdate: 'x', idType: null, idNumber: '' }, NOW)).sort())
-    .toEqual(['birthdate', 'fullName', 'idType']);
+  expect(Object.keys(validateIdForm(
+    { fullName: 'Ana', birthdate: 'x', idType: null, idNumber: '', address: 'n/a', sex: null }, NOW,
+  )).sort()).toEqual(['address', 'birthdate', 'fullName', 'idType', 'sex']);
 });
 
 test('namesMatch is loose about case, accents, spaces, order and middle names', () => {
@@ -66,12 +68,19 @@ describe('on the phone', () => {
     expect(runDeviceChecks(form({ birthdate: '2008-10-11' }), 'Ana Cruz', NOW).isAdult).toBe(false);
   });
 
-  test('the request carries no name, birthdate, ID type or ID number', () => {
+  test('a missing address or sex makes the details invalid', () => {
+    expect(runDeviceChecks(form({ address: '' }), 'Ana Cruz', NOW).formValid).toBe(false);
+    expect(runDeviceChecks(form({ sex: null }), 'Ana Cruz', NOW).formValid).toBe(false);
+  });
+
+  test('the request carries no name, birthdate, address, sex, ID type or ID number', () => {
     const request = buildVerificationRequest(form(), 'Ana Cruz', NOW);
     expect(Object.keys(request).sort()).toEqual(['checks', 'idHash']);
     expect(Object.keys(request.checks).sort()).toEqual(['formValid', 'isAdult', 'nameMatches']);
     const sent = JSON.stringify(request);
-    for (const raw of ['Ana', 'Cruz', '2000', '1234', '3456', 'PhilSys']) expect(sent).not.toContain(raw);
+    for (const raw of ['Ana', 'Cruz', '2000', '1234', '3456', 'PhilSys', 'Purok', 'Libertad', 'Butuan', 'Female']) {
+      expect(sent).not.toContain(raw);
+    }
   });
 
   test('idHash is SHA-256 of "type:normalized number", the same however the number was typed', () => {

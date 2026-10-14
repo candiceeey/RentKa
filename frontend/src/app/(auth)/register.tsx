@@ -113,7 +113,7 @@ export default function RegisterScreen() {
       />
       <FormError message={error} />
 
-      <Button title="Register Account" onPress={submit} loading={busy} />
+      <Button title="Register your Account" onPress={submit} loading={busy} />
       <PromptLink prompt="Already have an account?" action="Log in here" onPress={() => router.back()} />
     </Screen>
   );

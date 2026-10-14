@@ -23,6 +23,10 @@ export const verifyIdentity = onCall(
   async (request): Promise<VerificationResult> => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in first.');
+    // Email/password accounts must confirm their email first. Google accounts arrive already verified.
+    if (request.auth?.token.email_verified !== true) {
+      throw new HttpsError('failed-precondition', 'Verify your email first.');
+    }
 
     const input = parseVerificationRequest(request.data);
     if (!input) throw new HttpsError('invalid-argument', 'Update the app and try again.');

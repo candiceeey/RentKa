@@ -3,13 +3,43 @@
  * so every field is pre-filled only as a suggestion: the user must be able to edit all of them.
  * Parsed data stays on the device (expo-secure-store); the cloud only gets verified/isAdult/hash.
  */
+export type ParsedSex = 'Male' | 'Female';
+
 export interface ParsedId {
   idType: 'PhilSys' | 'DriversLicense' | 'UMID' | 'Passport' | 'Unknown';
   fullName?: string;
   birthdate?: string; // YYYY-MM-DD
   idNumber?: string;
+  address?: string;
+  sex?: ParsedSex;
   confidence: 'high' | 'low';
   missing: string[];
+}
+
+/** "Sex: F", "SEX M", "Kasarian / Sex\nFEMALE". */
+export function parseSex(lines: string[]): ParsedSex | undefined {
+  const value = valueAfterLabel(lines, /\b(sex|kasarian)\b/i);
+  const m = value?.toUpperCase().match(/\b(MALE|FEMALE|M|F|LALAKI|BABAE)\b/);
+  if (!m) return undefined;
+  return ['FEMALE', 'F', 'BABAE'].includes(m[1]) ? 'Female' : 'Male';
+}
+
+/** Address after an "Address" / "Tirahan" label, joined with the following line when it continues there. */
+export function parseAddress(lines: string[]): string | undefined {
+  for (let i = 0; i < lines.length; i++) {
+    if (!/\b(address|tirahan)\b/i.test(lines[i])) continue;
+    const inline = lines[i].split(':').slice(1).join(':').trim();
+    const parts = inline ? [inline] : [];
+    // Take up to two lines after the label, stopping at the next label ("Sex", "Date of Birth", ...).
+    for (let j = i + 1; j < lines.length && parts.length < 2; j++) {
+      if (/:|\b(sex|kasarian|birth|kapanganakan|expir|nationality|weight|height|blood|license)/i.test(lines[j])) break;
+      if (/^[\d\s-]+$/.test(lines[j])) break; // an ID number line, not part of the address
+      parts.push(lines[j]);
+    }
+    const address = parts.join(', ').replace(/\s+/g, ' ').trim();
+    if (address) return address;
+  }
+  return undefined;
 }
 
 const MONTHS: Record<string, string> = {
@@ -94,6 +124,8 @@ export function parseId(ocrText: string): ParsedId {
     fullName,
     birthdate,
     idNumber,
+    address: parseAddress(lines),
+    sex: parseSex(lines),
     confidence: missing.length === 0 && birthFromLabel && idType !== 'Unknown' ? 'high' : 'low',
     missing,
   };

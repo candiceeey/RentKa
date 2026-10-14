@@ -4,6 +4,8 @@ import {
   getAuth,
   getIdToken,
   onAuthStateChanged,
+  reload,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -52,6 +54,15 @@ type AuthValue = {
   /** True right after sign-up, until the ID step has been opened once. */
   shouldPromptVerify: boolean;
   clearVerifyPrompt: () => void;
+  /** Email/password accounts must confirm their email before the ID step. Google accounts arrive verified. */
+  emailVerified: boolean;
+  sendVerificationEmail: () => Promise<void>;
+  /** Reloads the account from Firebase and returns whether the email is now verified. */
+  refreshEmailVerified: () => Promise<boolean>;
+  /** Shown once on the Login screen, for example after the ID step signs the user out. */
+  loginNotice: string;
+  /** Signs out and leaves a message for the Login screen. */
+  signOutToLogin: (notice: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   register: (input: SignupInput) => Promise<void>;
   saveProfile: (input: ProfileInput) => Promise<void>;
@@ -82,12 +93,13 @@ const MESSAGES: Record<string, string> = {
   'firestore/permission-denied': 'Could not save your profile. Please try again.',
   'functions/unavailable': NO_INTERNET,
   'functions/deadline-exceeded': NO_INTERNET,
-  'functions/failed-precondition': 'Finish your profile first.',
 };
 
 /** Turns a Firebase error into a message a user can act on. */
 export function authErrorMessage(e: unknown): string {
-  const code = (e as { code?: string })?.code ?? '';
+  const { code = '', message = '' } = (e ?? {}) as { code?: string; message?: string };
+  // verifyIdentity explains its own preconditions ("Verify your email first.", "Finish your profile first.").
+  if (code === 'functions/failed-precondition' && message) return message;
   return MESSAGES[code] ?? 'Something went wrong. Please try again.';
 }
 
@@ -112,11 +124,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // While register() runs, the account exists but its profile is not written yet.
   const [registering, setRegistering] = useState(false);
   const [shouldPromptVerify, setShouldPromptVerify] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [loginNotice, setLoginNotice] = useState('');
 
   useEffect(
     () =>
       onAuthStateChanged(getAuth(), (u) => {
         setUser(u);
+        setEmailVerified(u?.emailVerified ?? false);
+        if (u) setLoginNotice('');
         setInitializing(false);
       }),
     [],
@@ -159,6 +175,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     stage,
     shouldPromptVerify,
     clearVerifyPrompt: () => setShouldPromptVerify(false),
+    emailVerified,
+    sendVerificationEmail: async () => {
+      if (user) await sendEmailVerification(user);
+    },
+    refreshEmailVerified: async () => {
+      if (!user) return false;
+      await reload(user);
+      const verified = getAuth().currentUser?.emailVerified ?? false;
+      // verifyIdentity reads email_verified from the login token, so fetch a fresh one.
+      if (verified) await getIdToken(user, true);
+      setEmailVerified(verified);
+      return verified;
+    },
+    loginNotice,
+    signOutToLogin: async (notice) => {
+      await firebaseSignOut(getAuth());
+      setLoginNotice(notice);
+    },
     signIn: async (email, password) => {
       await signInWithEmailAndPassword(getAuth(), email.trim(), password);
     },
@@ -167,6 +201,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const cred = await createUserWithEmailAndPassword(getAuth(), input.email.trim(), input.password);
         await writeProfile(cred.user.uid, input, cred.user.email);
+        // The account is usable even if this email fails; the Verify your email screen can resend it.
+        await sendEmailVerification(cred.user).catch(() => {});
         setShouldPromptVerify(true);
       } finally {
         setRegistering(false);

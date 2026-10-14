@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { RoleChoice } from '@/components/role-choice';
+import { TERMS_REQUIRED, TermsCheckbox } from '@/components/terms-checkbox';
 import { BackButton } from '@/components/ui/back-button';
 import { Button } from '@/components/ui/button';
 import { FormError } from '@/components/ui/form-error';
@@ -10,18 +11,24 @@ import { TextField } from '@/components/ui/text-field';
 import { authErrorMessage, useAuth } from '@/context/auth';
 import { validateProfile, type ProfileInput } from '@/core/userProfile';
 
-/** Shown when an account exists but its users/{uid} profile was never saved. Back signs out. */
+type Form = ProfileInput & { terms: boolean };
+
+/**
+ * "Complete your profile": shown when an account has no users/{uid} profile yet, mainly right after
+ * Continue with Google (the name comes from Google and stays editable). Back signs out.
+ */
 export default function CompleteProfileScreen() {
   const { user, saveProfile, signOut } = useAuth();
-  const [form, setForm] = useState<ProfileInput>({ fullName: '', contact: '', role: null });
-  const [errors, setErrors] = useState<Partial<Record<keyof ProfileInput, string>>>({});
+  const [form, setForm] = useState<Form>({ fullName: user?.displayName ?? '', contact: '', role: null, terms: false });
+  const [errors, setErrors] = useState<Partial<Record<keyof Form, string>>>({});
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const set = (key: 'fullName' | 'contact') => (value: string) => setForm((f) => ({ ...f, [key]: value }));
 
   const submit = async () => {
-    const found = validateProfile(form);
+    const found: Partial<Record<keyof Form, string>> = validateProfile(form);
+    if (!form.terms) found.terms = TERMS_REQUIRED;
     setErrors(found);
     if (Object.keys(found).length > 0) return;
     setError('');
@@ -38,7 +45,7 @@ export default function CompleteProfileScreen() {
   return (
     <Screen>
       <BackButton onPress={signOut} />
-      <FormTitle title="Set Up Profile" subtitle={`Signed in as ${user?.email ?? 'your account'}`} />
+      <FormTitle title="Complete Your Profile" subtitle={`Signed in as ${user?.email ?? 'your account'}`} />
 
       <TextField
         tone="surface"
@@ -61,10 +68,15 @@ export default function CompleteProfileScreen() {
         keyboardType="phone-pad"
         error={errors.contact}
       />
-      <RoleChoice value={form.role} onChange={(role) => setForm((f) => ({ ...f, role }))} error={errors.role} />
+      <RoleChoice tone="surface" value={form.role} onChange={(role) => setForm((f) => ({ ...f, role }))} error={errors.role} />
+      <TermsCheckbox
+        checked={form.terms}
+        onChange={(terms) => setForm((f) => ({ ...f, terms }))}
+        error={errors.terms}
+      />
       <FormError message={error} />
 
-      <Button title="Save" onPress={submit} loading={busy} />
+      <Button title="Continue" onPress={submit} loading={busy} />
     </Screen>
   );
 }

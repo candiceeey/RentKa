@@ -23,6 +23,8 @@ export const Colors = {
   /** Buttons, titles, links, selected states. */
   primary: '#047857',
   onPrimary: '#FFFFFF',
+  /** Dimmed backdrop behind a bottom sheet or dialog. */
+  overlay: 'rgba(15, 23, 42, 0.45)',
   /** Translucent white on a green header: the Lender/Borrower switch track. */
   onPrimarySoft: 'rgba(255, 255, 255, 0.2)',
   /** Mint: chips, selected tab pill, soft panels. */

@@ -5,6 +5,7 @@ import { BrandLogo } from '@/components/brand-logo';
 import { Button } from '@/components/ui/button';
 import { FormError } from '@/components/ui/form-error';
 import { FormTitle } from '@/components/ui/form-title';
+import { Notice } from '@/components/ui/notice';
 import { PromptLink } from '@/components/ui/prompt-link';
 import { Screen } from '@/components/ui/screen';
 import { TextField } from '@/components/ui/text-field';
@@ -13,7 +14,7 @@ import { authErrorMessage, useAuth } from '@/context/auth';
 import { isValidEmail } from '@/core/userProfile';
 
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, loginNotice } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -38,6 +39,7 @@ export default function LoginScreen() {
   return (
     <Screen hero={<BrandLogo />}>
       <FormTitle title="Welcome back!" size="title" />
+      {loginNotice ? <Notice message={loginNotice} /> : null}
 
       <TextField
         tone="surface"

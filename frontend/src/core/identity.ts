@@ -5,7 +5,7 @@
  * The function adds the server-side HMAC, checks duplicates and the attempt limit, and decides
  * (decideVerification): "verified" or "rejected" with a reason. Nobody approves by hand.
  */
-import { ParsedId, parseDate } from './idParse';
+import { ParsedId, ParsedSex, parseDate } from './idParse';
 import { sha256Hex } from './sha256';
 import { isAdult } from './validators';
 
@@ -41,19 +41,34 @@ export function normalizeBirthdate(value: string, today: Date = new Date()): str
   return iso;
 }
 
+export type Sex = ParsedSex;
+
+export const SEX_OPTIONS: { value: Sex; label: string }[] = [
+  { value: 'Male', label: 'Male' },
+  { value: 'Female', label: 'Female' },
+];
+
+/** Everything on the ID form. All of it stays on the phone: only a hash and pass/fail results are sent. */
 export interface IdForm {
   fullName: string;
   birthdate: string;
   /** null until the user picks one. */
   idType: IdType | null;
   idNumber: string;
+  address: string;
+  /** null until the user picks one. */
+  sex: Sex | null;
 }
 
-/** Returns an error message per invalid field. Empty object when valid. Age is checked by decideVerification. */
+export const ADDRESS_MIN_LENGTH = 5;
+
+/** Returns an error message per invalid field. Empty object when valid. The age is checked separately (runDeviceChecks). */
 export function validateIdForm(form: IdForm, today: Date = new Date()): Partial<Record<keyof IdForm, string>> {
   const errors: Partial<Record<keyof IdForm, string>> = {};
   if (nameTokens(form.fullName).length < 2) errors.fullName = 'Enter your full name as shown on the ID';
   if (!normalizeBirthdate(form.birthdate, today)) errors.birthdate = 'Enter your birthdate like 2000-01-31';
+  if (form.address.trim().length < ADDRESS_MIN_LENGTH) errors.address = 'Enter your address as shown on the ID';
+  if (!form.sex) errors.sex = 'Choose Male or Female';
   if (!form.idType) {
     errors.idType = 'Choose the type of ID';
   } else if (!ID_NUMBER_FORMAT[form.idType].test(normalizeIdNumber(form.idNumber))) {
