@@ -11,7 +11,7 @@ type TermsCheckboxProps = {
   error?: string;
 };
 
-/** "By clicking this, you agree to the Terms and Conditions", shared by login and register. */
+/** "By clicking this, you agree to the Terms and Conditions". Asked once, at registration. */
 export function TermsCheckbox({ checked, onChange, error }: TermsCheckboxProps) {
   return (
     <Checkbox checked={checked} onChange={onChange} error={error}>

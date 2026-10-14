@@ -21,7 +21,8 @@
 - `verifyIdentity` deployed 2026-10-10 with a 60-second code-load timeout (`FUNCTIONS_DISCOVERY_TIMEOUT=60`), because the default 10 seconds timed out on this machine. Artifact cleanup policy: images older than 1 day are deleted.
 - Liveness check is planned, not built: on-device ML Kit Face Detection, pass/fail only, built with the ML Kit module after the lender, borrower and rental flows work. `LIVENESS_REQUIRED` in rentka-core is off until then. Limitation: it shows a live person is present, not that they own the ID. App Check (Play Integrity) for `verifyIdentity` is a trade-off to decide at that point.
 - Tabs follow the prototype per role (Lender: Home, Listings, Requests, Messages; Borrower: Home, Requests, Messages); Profile is behind the header avatar.
-- Login keeps Forgot Password and the Terms checkbox; Google sign-in and the "Login as" picker are dropped. Terms text in the app is a placeholder.
+- Login keeps Forgot Password; Google sign-in and the "Login as" picker are dropped.
+- The Terms checkbox is asked once, at registration, not at every sign-in. The Terms and Privacy Notice text (last updated 2026-10-14) lives in one file, frontend/src/constants/terms.ts.
 - App foundation added no native packages, so no rebuild of the dev build was needed.
 - UI follows docs/prototype: all colors, fonts (Inter), spacing, radii and shadows live in frontend/src/constants/theme.ts; screens only compose shared components. Light theme only, as in the prototype.
 - Prototype items left out on purpose: Google sign-in and the "Login as" picker (role switching is from the header).
