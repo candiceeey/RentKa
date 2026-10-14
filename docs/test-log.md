@@ -6,6 +6,32 @@
 | 2026-10-10 | rentka-core tests (roles, per-role ratings, ID form, verification decision) and rules tests (roles, role needed to post, rating fields, chat) | 69 of 69 and 26 of 26 passed | Rules and `verifyIdentity` deployed afterwards. An unauthenticated call to the live function returns "Sign in first." Signed-in verification not yet tested on a phone. |
 | 2026-10-14 | rentka-core tests after moving the ID checks to the phone: SHA-256 against published vectors and Node crypto (lengths 0 to 130, non-ASCII), request contains no raw ID data, server accepts only a hex hash plus three booleans, decision order | 76 of 76 passed | `verifyIdentity` redeployed; an unauthenticated call still returns "Sign in first." Signed-in path not yet tested on a phone. |
 | 2026-10-14 | Registration stage 1: rentka-core tests for address and sex (form validation, OCR parsing, never in the request); rules tests rerun | 80 of 80 and 26 of 26 passed | `verifyIdentity` redeployed with the verified-email requirement. App type-checks and bundles; not yet tested on a phone. |
+| 2026-10-15 | 6-digit email code: rentka-core rules (expiry, tries, resend wait), real `sendEmailCode` / `verifyEmailCode` / `verifyIdentity` against the Firestore and Auth emulators with email mocked, rules tests | 86 of 86, 14 of 14, 29 of 29 passed | Not deployed yet (waiting for the Gmail app password secret). No real email sent in tests. |
+
+## Function tests added 2026-10-15 (emulator, email mocked)
+| Test ID | Scenario | Expected | Actual | Pass/Fail |
+|---|---|---|---|---|
+| E01 | Send a code | One email with a 6-digit code; stored doc has only codeHash, sentAt, expiresAt (+10 min), tries 0; the code is not in it | As expected | Pass |
+| E02 | Second send within 60 s | Refused (resource-exhausted), no second email | As expected | Pass |
+| E03 | Send again after 60 s | New code sent, tries reset, old code no longer works, new code verifies | As expected | Pass |
+| E04 | Google sign-in or already verified account asks for a code | No email, "alreadyVerified" | As expected | Pass |
+| E05 | Email sending fails | Error, nothing stored, immediate retry allowed | As expected | Pass |
+| E06 | Signed-out call | Refused (unauthenticated) | As expected | Pass |
+| E07 | Right code | Verified; users.emailVerified and emailVerifiedAt set; code deleted | As expected | Pass |
+| E08 | Right code after 10 minutes | "expired", email not verified | As expected | Pass |
+| E09 | 4 wrong codes, then the right one | Tries left 4, 3, 2, 1, then verified | As expected | Pass |
+| E10 | 5 wrong codes, then the right one | "tooManyTries", email not verified | As expected | Pass |
+| E11 | Another user's code | Hashes differ per user; the other user's code is wrong | As expected | Pass |
+| E12 | No code sent yet; 5-digit code | "noCode"; refused (invalid-argument) | As expected | Pass |
+| E13 | ID step before and after email verification | "Verify your email first."; then verified | As expected | Pass |
+| E14 | ID step for a Google sign-in account | Verified without an email code | As expected | Pass |
+
+## Security rules tests added 2026-10-15 (emulator)
+| Test ID | Scenario | Expected | Actual | Pass/Fail |
+|---|---|---|---|---|
+| R19 | Create own profile with emailVerified or emailVerifiedAt | Denied | Denied | Pass |
+| R20 | Update emailVerified or emailVerifiedAt (alone, with fullName, or by merge); update fullName alone | Denied; allowed | Denied; allowed | Pass |
+| R21 | Read, update, delete own email code; create one for another user | Denied | Denied | Pass |
 
 ## Security rules tests added 2026-10-10 (emulator)
 Changed: R01 now uses an unverified account that has both roles; R04 and R06 cover the four rating fields; R09 and R10 also cover signed-out and both participants.

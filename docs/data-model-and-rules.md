@@ -14,7 +14,7 @@ Stack: React Native + Expo (dev build), Firebase (Auth, Firestore, Storage, Clou
    - Limits to state honestly: the pass/fail results come from the phone, so a modified app could fake them (App Check is the planned safeguard). The SHA-256 of an ID number is not anonymous on its own (ID numbers can be guessed and hashed), so it travels only over HTTPS and is never stored; only the keyed HMAC is stored.
 2. Verification is **automatic** (Cloud Function `verifyIdentity`) with only two outcomes: **verified** or **rejected** (with a reason). There is no "flagged" outcome and no manual approval. Admin handles only disputes and moderation.
    - Required for every user at registration, whatever the role. Adding a role later needs no second check.
-   - Registration flow: Register (full name, email, contact, password, confirm password, "Sign up as", Terms) or Continue with Google then "Complete your profile" (contact, Sign up as, Terms) -> verify email by link (email/password accounts only; `verifyIdentity` requires `email_verified`) -> ID type -> scan ID (ML Kit text recognition) -> face check with motion (ML Kit face detection, blink or head turn) -> editable details auto-filled from the scan (ID number, name, address, sex, birthdate) -> review -> result -> sign out to Login. Scan, face check and Google sign-in come with the stage-2 native rebuild; manual entry is the fallback.
+   - Registration flow: Register (full name, email, contact, password, confirm password, "Sign up as", Terms) or Continue with Google then "Complete your profile" (contact, Sign up as, Terms) -> verify email with a 6-digit code (email/password accounts only; Google accounts skip; `verifyIdentity` requires `users.emailVerified`) -> ID type -> scan ID (ML Kit text recognition) -> face check with motion (ML Kit face detection, blink or head turn) -> editable details auto-filled from the scan (ID number, name, address, sex, birthdate) -> review -> result -> sign out to Login. Scan, face check and Google sign-in come with the stage-2 native rebuild; manual entry is the fallback.
    - Address and sex are only for the on-device form: never sent, never stored, not part of `users`.
    - Until `verified == true` a user cannot post an item, post a request, or accept or start a rental (enforced in the rules and in the functions).
    - Rejections: invalid details; under 18; name on the ID does not match the account name ("Name doesn't match your account", compared loosely: case, accents, spacing, "Last, First" order and a missing middle name are ignored); ID already registered ("This ID is already registered."); more than 5 attempts in 24 hours (temporary lockout, "Try again in X hours", lifts by itself).
@@ -39,6 +39,8 @@ fullName, contact, email
 roles: ["lender"] | ["borrower"] | ["lender","borrower"]   // only what the user chose; can grow, never shrink
 verified: bool            // set by verifyIdentity only
 isAdult: bool             // set by verifyIdentity only
+emailVerified: bool       // set by verifyEmailCode only
+emailVerifiedAt: timestamp  // set by verifyEmailCode only
 verifiedAt: timestamp     // set by verifyIdentity only
 lenderTrustScore: number      // missing = 3.00; written only by the rating function
 lenderRatingCount: number     // missing = 0; written only by the rating function
@@ -149,6 +151,7 @@ owedByBorrower     // if balance < 0
 - `uniqueIds/{hash}`: `{ itemId }`. Blocks the same unit being listed twice. Hash = HMAC of `type + normalized value`.
 - `idHashes/{hmac}`: `{ uid, createdAt }`. Blocks duplicate ID registration. Key = HMAC-SHA256(server secret `ID_HMAC_SECRET`, SHA-256 of `"<idType>:<normalized ID number>"` sent by the phone).
 - `verifyAttempts/{uid}`: `{ times: [timestamp] }`, the attempts in the last 24 hours, for the automatic lockout.
+- `emailCodes/{uid}`: `{ codeHash, sentAt, expiresAt, tries }`. The current 6-digit email code, stored only as HMAC-SHA256(`ID_HMAC_SECRET`, `"uid:code"`). Expires 10 minutes after `sentAt`; dead after 5 wrong tries; deleted when used. A new code (at most one per minute) replaces it.
 
 ---
 
@@ -197,7 +200,9 @@ If the item is never returned: the admin can mark it returned or disputed, and t
 
 | Function | Trigger | Purpose |
 |---|---|---|
-| `verifyIdentity` | callable | **Deployed.** Receives only `{ idHash, checks, livenessPassed? }` (no raw ID data; the phone runs the field, age and name checks). Applies the HMAC, checks duplicates, 24-hour lockout after 5 attempts, sets the `verified` claim. Stores only `verified`, `isAdult`, `verifiedAt` and the HMAC. Outcomes: verified / rejected(reason). Logic: `buildVerificationRequest` (phone) and `parseVerificationRequest` + `decideVerification` (server) in `rentka-core/src/identity.ts`. |
+| `sendEmailCode` | callable | Emails a random 6-digit code from rentkabxu@gmail.com (nodemailer, Gmail app password in `GMAIL_APP_PASSWORD`). Stores only its HMAC in `emailCodes/{uid}` with a 10-minute expiry. One send per minute ("Wait N seconds"). Skips Google and already verified accounts. |
+| `verifyEmailCode` | callable | Checks a typed code in a transaction (constant-time compare). Wrong: one try used, "N tries left". Dead after 5 wrong tries or 10 minutes. Right: deletes the code, sets `users.emailVerified` and `emailVerifiedAt`. The only writer of those fields. |
+| `verifyIdentity` | callable | **Deployed.** Refused until `users.emailVerified` is true (Google sign-in accounts excepted). Receives only `{ idHash, checks, livenessPassed? }` (no raw ID data; the phone runs the field, age and name checks). Applies the HMAC, checks duplicates, 24-hour lockout after 5 attempts, sets the `verified` claim. Stores only `verified`, `isAdult`, `verifiedAt` and the HMAC. Outcomes: verified / rejected(reason). Logic: `buildVerificationRequest` (phone) and `parseVerificationRequest` + `decideVerification` (server) in `rentka-core/src/identity.ts`. |
 | `onItemCreate` | Firestore onCreate (items) | Reserve `uniqueIds` hash, match against open requests, write matches, notify. |
 | `onRequestCreate` | Firestore onCreate (requests) | Match against available items, write matches, notify. |
 | `rentalAction` | callable | The state machine above (single switch). |
@@ -234,7 +239,7 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if signedIn();
-      // Allowlist: verified, isAdult, verifiedAt and the four rating fields
+      // Allowlist: verified, isAdult, verifiedAt, emailVerified, emailVerifiedAt and the four rating fields
       // (lenderTrustScore, lenderRatingCount, borrowerTrustScore, borrowerRatingCount) are function-written.
       allow create: if isOwner(uid)
         && request.resource.data.keys().hasOnly(['fullName','contact','email','roles','fcmToken','createdAt'])
@@ -308,6 +313,7 @@ service cloud.firestore {
     match /uniqueIds/{id}      { allow read, write: if false; }
     match /idHashes/{id}       { allow read, write: if false; }
     match /verifyAttempts/{id} { allow read, write: if false; }
+    match /emailCodes/{id}     { allow read, write: if false; }  // hashed email codes, functions only
   }
 }
 ```
@@ -364,7 +370,9 @@ Log each as: Test ID | Scenario | Expected | Actual | Pass/Fail.
 - Borrower-only account cannot create an item; lender-only account cannot create a request.
 - Roles on create: missing, empty, unknown or duplicated values are denied; lender, borrower or both are allowed.
 - A role can be added later; a role cannot be removed; roles and a protected field cannot change in one write.
-- Client cannot set `verified`, the four rating fields, or `status`.
+- Client cannot set `verified`, `emailVerified`, `emailVerifiedAt`, the four rating fields, or `status`.
+- Clients cannot read or write `emailCodes`.
+- Email code (function tests): a code expires after 10 minutes; 5 wrong tries kill it; one resend per minute; only the hash is stored.
 - Non-participant cannot read a rental, its chat, or its payment proof.
 - Borrower cannot read `items/{id}/private/identifiers` before a rental is accepted.
 - Two lenders cannot both accept the same request.
