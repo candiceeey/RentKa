@@ -19,8 +19,9 @@ import {
 type Step = 'form' | 'check' | 'result';
 
 /**
- * ID step: form -> check details -> instant result. The fields live only in this screen's memory:
- * nothing is saved on the phone, and the cloud keeps only the result. The ML Kit scan will pre-fill
+ * ID step: form -> check details -> instant result. The fields live only in this screen's memory and never
+ * leave the phone: verifyIdentity gets only a hash of the ID type and number and pass/fail results
+ * (buildVerificationRequest in the core). The ML Kit scan will pre-fill
  * the same form later, and the liveness check will sit between "check" and "result".
  */
 export default function VerifyScreen() {
@@ -102,7 +103,7 @@ export default function VerifyScreen() {
       <BackButton onPress={leave} />
       <FormTitle
         title="Verify Your Identity"
-        subtitle="This keeps our community safe. Your ID details are checked once and are not saved."
+        subtitle="This keeps our community safe. Your ID details are checked on this phone and never uploaded or saved."
       />
       <TextField
         tone="surface"

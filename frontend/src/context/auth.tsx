@@ -11,7 +11,7 @@ import {
 import { doc, getFirestore, onSnapshot, serverTimestamp, setDoc, updateDoc } from '@react-native-firebase/firestore';
 import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 
-import { type IdForm, type VerificationResult } from '@/core/identity';
+import { buildVerificationRequest, type IdForm, type VerificationRequest, type VerificationResult } from '@/core/identity';
 import { type Role } from '@/core/stateMachine';
 import {
   canAddRole, cleanRoles, normalizePhMobile, pickSignupFields, rolesFor, type ProfileInput, type SignupInput,
@@ -57,7 +57,10 @@ type AuthValue = {
   saveProfile: (input: ProfileInput) => Promise<void>;
   addRole: (role: Role) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
-  /** Sends the ID form to the verifyIdentity function. The form is never stored on the phone or in the cloud. */
+  /**
+   * Checks the ID form on the phone, then sends verifyIdentity only a hash of the ID type and number
+   * and the pass/fail results. The raw form never leaves the phone and is never stored.
+   */
   verifyIdentity: (form: IdForm) => Promise<VerificationResult>;
   signOut: () => Promise<void>;
 };
@@ -182,8 +185,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     resetPassword: (email) => sendPasswordResetEmail(getAuth(), email.trim()),
     verifyIdentity: async (form) => {
       if (!user) throw new Error('Not signed in');
-      const call = httpsCallable<IdForm, VerificationResult>(getFunctions(undefined, FUNCTIONS_REGION), 'verifyIdentity');
-      const { data } = await call(form);
+      const request = buildVerificationRequest(form, profile?.fullName ?? '');
+      const call = httpsCallable<VerificationRequest, VerificationResult>(
+        getFunctions(undefined, FUNCTIONS_REGION),
+        'verifyIdentity',
+      );
+      const { data } = await call(request);
       // The verified claim lives in the login token, so fetch a fresh one before the rules will see it.
       if (data.status === 'verified') await getIdToken(user, true);
       return data;

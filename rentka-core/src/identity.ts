@@ -1,9 +1,12 @@
 /**
- * ID step: form validation on the phone and the verification decision used by the verifyIdentity function.
- * Verification is fully automatic: the result is "verified" or "rejected" (with a reason). Nobody approves by hand.
- * Nothing from the ID is stored. The cloud keeps only verified, isAdult, a timestamp and an HMAC of the ID number.
+ * ID step. The raw ID details (name, birthdate, ID type, ID number) never leave the phone:
+ * the phone runs the checks itself (validateIdForm, age, name match) and sends verifyIdentity only
+ * a SHA-256 hash of the normalized ID type and number plus the pass/fail results (buildVerificationRequest).
+ * The function adds the server-side HMAC, checks duplicates and the attempt limit, and decides
+ * (decideVerification): "verified" or "rejected" with a reason. Nobody approves by hand.
  */
 import { ParsedId, parseDate } from './idParse';
+import { sha256Hex } from './sha256';
 import { isAdult } from './validators';
 
 export type IdType = Exclude<ParsedId['idType'], 'Unknown'>;
@@ -83,6 +86,67 @@ export function namesMatch(a: string, b: string): boolean {
   return short.length >= 2 && short.every((t) => long.includes(t));
 }
 
+/** What gets hashed: "PhilSys:1234567890123456". Same ID typed differently gives the same value. */
+export function idHashInput(idType: IdType, idNumber: string): string {
+  return `${idType}:${normalizeIdNumber(idNumber)}`;
+}
+
+/** Pass/fail results of the checks the phone runs on the raw ID details. Only these booleans are sent. */
+export interface DeviceChecks {
+  /** validateIdForm found no errors (name, birthdate, ID type, ID number format). */
+  formValid: boolean;
+  /** 18 or older on the day of the check. */
+  isAdult: boolean;
+  /** Name on the ID loosely matches the account name (namesMatch). */
+  nameMatches: boolean;
+}
+
+/** Everything verifyIdentity receives. No name, birthdate, ID type or ID number. */
+export interface VerificationRequest {
+  /** Lower-case hex SHA-256 of idHashInput(idType, idNumber). */
+  idHash: string;
+  checks: DeviceChecks;
+  /** Sent by the liveness module once it exists. */
+  livenessPassed?: boolean;
+}
+
+export function runDeviceChecks(form: IdForm, accountName: string, today: Date = new Date()): DeviceChecks {
+  const formValid = Object.keys(validateIdForm(form, today)).length === 0;
+  const birthdate = normalizeBirthdate(form.birthdate, today);
+  return {
+    formValid,
+    isAdult: !!birthdate && isAdult(birthdate, today),
+    nameMatches: namesMatch(form.fullName, accountName),
+  };
+}
+
+/**
+ * Builds the only payload the phone sends to verifyIdentity. Call it after validateIdForm passes
+ * (the ID type must be chosen to hash). The raw form stays on the phone.
+ */
+export function buildVerificationRequest(form: IdForm, accountName: string, today: Date = new Date()): VerificationRequest {
+  if (!form.idType) throw new Error('ID type not chosen');
+  return {
+    idHash: sha256Hex(idHashInput(form.idType, form.idNumber)),
+    checks: runDeviceChecks(form, accountName, today),
+  };
+}
+
+export const isIdHash = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+
+/** Reads an untrusted payload on the server. Returns null when it is not a well-formed VerificationRequest. */
+export function parseVerificationRequest(data: unknown): VerificationRequest | null {
+  const d = (data ?? {}) as Record<string, unknown>;
+  const c = (d.checks ?? {}) as Record<string, unknown>;
+  const bool = (v: unknown) => typeof v === 'boolean';
+  if (!isIdHash(d.idHash) || !bool(c.formValid) || !bool(c.isAdult) || !bool(c.nameMatches)) return null;
+  return {
+    idHash: d.idHash,
+    checks: { formValid: c.formValid as boolean, isAdult: c.isAdult as boolean, nameMatches: c.nameMatches as boolean },
+    livenessPassed: d.livenessPassed === true,
+  };
+}
+
 export const MAX_VERIFY_ATTEMPTS = 5;
 export const VERIFY_WINDOW_HOURS = 24;
 const HOUR_MS = 60 * 60 * 1000;
@@ -100,12 +164,10 @@ export type VerificationResult =
   | { status: 'rejected'; reason: RejectReason; message: string; retryAfterHours?: number };
 
 export interface VerificationInput {
-  form: IdForm;
-  /** fullName on the user's account. */
-  accountName: string;
+  checks: DeviceChecks;
   /** Times of this user's earlier attempts. Older ones are ignored. */
   attemptTimes: Date[];
-  /** True when this ID number is already tied to a different account. */
+  /** True when this ID hash is already tied to a different account. */
   idAlreadyRegistered: boolean;
   livenessPassed?: boolean;
   now?: Date;
@@ -123,6 +185,7 @@ const reject = (reason: RejectReason, message: string, retryAfterHours?: number)
     ? { status: 'rejected', reason, message }
     : { status: 'rejected', reason, message, retryAfterHours };
 
+/** Runs on the server with the phone's pass/fail results. Order: lockout, details, age, name, duplicate, liveness. */
 export function decideVerification(input: VerificationInput): VerificationResult {
   const now = input.now ?? new Date();
 
@@ -134,16 +197,9 @@ export function decideVerification(input: VerificationInput): VerificationResult
     return reject('locked', `Too many attempts. Try again in ${hours} ${hours === 1 ? 'hour' : 'hours'}.`, hours);
   }
 
-  const errors = validateIdForm(input.form, now);
-  const firstError = errors.fullName ?? errors.birthdate ?? errors.idType ?? errors.idNumber;
-  if (firstError) return reject('invalid', firstError);
-
-  if (!isAdult(normalizeBirthdate(input.form.birthdate, now)!, now)) {
-    return reject('underage', 'You must be at least 18 years old to use RentKa.');
-  }
-  if (!namesMatch(input.form.fullName, input.accountName)) {
-    return reject('nameMismatch', "Name doesn't match your account");
-  }
+  if (!input.checks.formValid) return reject('invalid', 'Your ID details are not valid. Check them and try again.');
+  if (!input.checks.isAdult) return reject('underage', 'You must be at least 18 years old to use RentKa.');
+  if (!input.checks.nameMatches) return reject('nameMismatch', "Name doesn't match your account");
   if (input.idAlreadyRegistered) return reject('duplicate', 'This ID is already registered.');
   if ((input.livenessRequired ?? LIVENESS_REQUIRED) && !input.livenessPassed) {
     return reject('liveness', 'The liveness check was not passed. Please try again.');

@@ -1,30 +1,22 @@
 import { createHmac } from 'crypto';
 import { getAuth } from 'firebase-admin/auth';
-import { FieldValue, Timestamp, getFirestore, type DocumentReference } from 'firebase-admin/firestore';
+import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
-  decideVerification, normalizeIdNumber, recentAttempts, validateIdForm,
-  ID_TYPES, type IdForm, type VerificationResult,
+  decideVerification, parseVerificationRequest, recentAttempts, type VerificationResult,
 } from './core/identity';
-import { INITIAL_TRUST_SCORE } from './core/stateMachine';
 import { BASE_OPTIONS } from './options';
 
 const ID_HMAC_SECRET = defineSecret('ID_HMAC_SECRET');
 
-const text = (value: unknown) => (typeof value === 'string' ? value : '');
-
-function readForm(data: unknown): IdForm {
-  const d = (data ?? {}) as Record<string, unknown>;
-  const idType = ID_TYPES.find((t) => t.value === d.idType)?.value ?? null;
-  return { fullName: text(d.fullName), birthdate: text(d.birthdate), idType, idNumber: text(d.idNumber) };
-}
-
 /**
- * Automatic identity check. The ID fields are used only inside this call and are never written or logged.
- * Stored: verified, isAdult, verifiedAt and starting ratings on the user, an HMAC of the ID number
- * (to block the same ID on a second account), and attempt times (for the 24-hour lockout).
+ * Automatic identity check. The phone never sends the name, birthdate, ID type or ID number: it runs those
+ * checks itself and sends only a SHA-256 hash of the normalized ID type and number plus pass/fail results.
+ * This function keys that hash with a server-side HMAC (so the stored value cannot be matched without the
+ * secret), blocks the same ID on a second account, applies the 24-hour attempt limit, and decides.
+ * Stored: verified, isAdult, verifiedAt on the user; idHashes/{HMAC} -> uid; attempt times for the lockout.
  */
 export const verifyIdentity = onCall(
   { ...BASE_OPTIONS, secrets: [ID_HMAC_SECRET] },
@@ -32,16 +24,17 @@ export const verifyIdentity = onCall(
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in first.');
 
-    const data = request.data as Record<string, unknown> | undefined;
-    const form = readForm(data);
-    const livenessPassed = data?.livenessPassed === true;
+    const input = parseVerificationRequest(request.data);
+    if (!input) throw new HttpsError('invalid-argument', 'Update the app and try again.');
 
     const db = getFirestore();
     const userRef = db.doc(`users/${uid}`);
     const attemptsRef = db.doc(`verifyAttempts/${uid}`);
+    const hmac = createHmac('sha256', ID_HMAC_SECRET.value()).update(input.idHash).digest('hex');
+    const hashRef = db.doc(`idHashes/${hmac}`);
 
     const result = await db.runTransaction<VerificationResult>(async (tx) => {
-      const [userSnap, attemptsSnap] = await Promise.all([tx.get(userRef), tx.get(attemptsRef)]);
+      const [userSnap, attemptsSnap, hashSnap] = await Promise.all([tx.get(userRef), tx.get(attemptsRef), tx.get(hashRef)]);
       if (!userSnap.exists) throw new HttpsError('failed-precondition', 'Finish your profile first.');
       if (userSnap.get('verified') === true) return { status: 'verified' };
 
@@ -49,24 +42,11 @@ export const verifyIdentity = onCall(
       const stored = (attemptsSnap.get('times') ?? []) as Timestamp[];
       const attemptTimes = recentAttempts(stored.map((t) => t.toDate()), now);
 
-      // The hash is looked up only when the number has a valid format for its ID type.
-      let hashRef: DocumentReference | undefined;
-      let idAlreadyRegistered = false;
-      if (form.idType && !validateIdForm(form, now).idNumber) {
-        const hash = createHmac('sha256', ID_HMAC_SECRET.value())
-          .update(`${form.idType}:${normalizeIdNumber(form.idNumber)}`)
-          .digest('hex');
-        hashRef = db.doc(`idHashes/${hash}`);
-        const hashSnap = await tx.get(hashRef);
-        idAlreadyRegistered = hashSnap.exists && hashSnap.get('uid') !== uid;
-      }
-
       const decision = decideVerification({
-        form,
-        accountName: text(userSnap.get('fullName')),
+        checks: input.checks,
         attemptTimes,
-        idAlreadyRegistered,
-        livenessPassed,
+        idAlreadyRegistered: hashSnap.exists && hashSnap.get('uid') !== uid,
+        livenessPassed: input.livenessPassed,
         now,
       });
 
@@ -74,21 +54,9 @@ export const verifyIdentity = onCall(
       if (decision.status === 'rejected' && decision.reason === 'locked') return decision;
       tx.set(attemptsRef, { times: [...attemptTimes, now].map((t) => Timestamp.fromDate(t)) });
 
-      if (decision.status === 'verified' && hashRef) {
+      if (decision.status === 'verified') {
         tx.set(hashRef, { uid, createdAt: FieldValue.serverTimestamp() });
-        tx.set(
-          userRef,
-          {
-            verified: true,
-            isAdult: true,
-            verifiedAt: FieldValue.serverTimestamp(),
-            lenderTrustScore: userSnap.get('lenderTrustScore') ?? INITIAL_TRUST_SCORE,
-            lenderRatingCount: userSnap.get('lenderRatingCount') ?? 0,
-            borrowerTrustScore: userSnap.get('borrowerTrustScore') ?? INITIAL_TRUST_SCORE,
-            borrowerRatingCount: userSnap.get('borrowerRatingCount') ?? 0,
-          },
-          { merge: true },
-        );
+        tx.set(userRef, { verified: true, isAdult: true, verifiedAt: FieldValue.serverTimestamp() }, { merge: true });
       }
       return decision;
     });
