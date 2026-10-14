@@ -6,7 +6,12 @@ Stack: React Native + Expo (dev build), Firebase (Auth, Firestore, Storage, Clou
 
 ## 1. Design decisions (from the panel + adviser changes)
 
-1. The ID step happens **on the device**: an editable form (full name, birthdate, ID type, ID number) that the ML Kit scan will pre-fill later. The ID fields are sent once to `verifyIdentity` and are **never stored** on the phone, in Firestore or in Storage. The cloud keeps only `verified`, `isAdult`, a timestamp, and an HMAC hash for duplicate detection. No `ids/` path in Storage.
+1. The ID step happens **on the device**: an editable form (full name, birthdate, ID type, ID number) that the ML Kit scan will pre-fill later. **Raw ID data is never uploaded or stored**: the four fields never leave the phone. The phone runs the checks itself (`validateIdForm`, age >= 18, loose name match with the account) and sends `verifyIdentity` only:
+   - `idHash`: SHA-256 (hex) of `"<idType>:<normalized ID number>"`, computed on the phone;
+   - `checks`: `{ formValid, isAdult, nameMatches }` (pass/fail);
+   - `livenessPassed` (later, from the liveness module).
+   The function applies HMAC-SHA256 with a server secret to `idHash`, checks for duplicates and the attempt limit, and stores only `verified`, `isAdult`, `verifiedAt` and the HMAC (plus attempt times for the lockout). No `ids/` path in Storage.
+   - Limits to state honestly: the pass/fail results come from the phone, so a modified app could fake them (App Check is the planned safeguard). The SHA-256 of an ID number is not anonymous on its own (ID numbers can be guessed and hashed), so it travels only over HTTPS and is never stored; only the keyed HMAC is stored.
 2. Verification is **automatic** (Cloud Function `verifyIdentity`) with only two outcomes: **verified** or **rejected** (with a reason). There is no "flagged" outcome and no manual approval. Admin handles only disputes and moderation.
    - Required for every user at registration, whatever the role. Adding a role later needs no second check.
    - Until `verified == true` a user cannot post an item, post a request, or accept or start a rental (enforced in the rules and in the functions).
@@ -33,10 +38,10 @@ roles: ["lender"] | ["borrower"] | ["lender","borrower"]   // only what the user
 verified: bool            // set by verifyIdentity only
 isAdult: bool             // set by verifyIdentity only
 verifiedAt: timestamp     // set by verifyIdentity only
-lenderTrustScore: number      // starts 3.00, function-written only
-lenderRatingCount: number     // starts 0, function-written only
-borrowerTrustScore: number    // starts 3.00, function-written only
-borrowerRatingCount: number   // starts 0, function-written only
+lenderTrustScore: number      // missing = 3.00; written only by the rating function
+lenderRatingCount: number     // missing = 0; written only by the rating function
+borrowerTrustScore: number    // missing = 3.00; written only by the rating function
+borrowerRatingCount: number   // missing = 0; written only by the rating function
 fcmToken: string
 createdAt
 ```
@@ -140,7 +145,7 @@ owedByBorrower     // if balance < 0
 
 ### Server-only collections (no client access)
 - `uniqueIds/{hash}`: `{ itemId }`. Blocks the same unit being listed twice. Hash = HMAC of `type + normalized value`.
-- `idHashes/{hash}`: `{ uid }`. Blocks duplicate ID registration. Hash = HMAC of ID number with a server secret.
+- `idHashes/{hmac}`: `{ uid, createdAt }`. Blocks duplicate ID registration. Key = HMAC-SHA256(server secret `ID_HMAC_SECRET`, SHA-256 of `"<idType>:<normalized ID number>"` sent by the phone).
 - `verifyAttempts/{uid}`: `{ times: [timestamp] }`, the attempts in the last 24 hours, for the automatic lockout.
 
 ---
@@ -190,7 +195,7 @@ If the item is never returned: the admin can mark it returned or disputed, and t
 
 | Function | Trigger | Purpose |
 |---|---|---|
-| `verifyIdentity` | callable | **Deployed.** Validate fields, age >= 18, loose name match with the account, HMAC duplicate check, 24-hour lockout after 5 attempts, set the `verified` claim and the starting ratings. Outcomes: verified / rejected(reason). Decision logic is `decideVerification` in `rentka-core/src/identity.ts`. |
+| `verifyIdentity` | callable | **Deployed.** Receives only `{ idHash, checks, livenessPassed? }` (no raw ID data; the phone runs the field, age and name checks). Applies the HMAC, checks duplicates, 24-hour lockout after 5 attempts, sets the `verified` claim. Stores only `verified`, `isAdult`, `verifiedAt` and the HMAC. Outcomes: verified / rejected(reason). Logic: `buildVerificationRequest` (phone) and `parseVerificationRequest` + `decideVerification` (server) in `rentka-core/src/identity.ts`. |
 | `onItemCreate` | Firestore onCreate (items) | Reserve `uniqueIds` hash, match against open requests, write matches, notify. |
 | `onRequestCreate` | Firestore onCreate (requests) | Match against available items, write matches, notify. |
 | `rentalAction` | callable | The state machine above (single switch). |

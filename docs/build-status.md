@@ -10,6 +10,7 @@
 - Built screens restyled to docs/prototype (green/cream theme, Inter, shared components). Logo is a placeholder until the image file is added. Type-checks and bundles; NOT yet tried on a phone.
 - 2026-10-10: roles chosen at sign-up (Lender / Borrower / Both, add the other later), per-role trust scores, ID step (form -> check -> verified or rejected), tabs per role, Forgot Password, Terms checkbox. rentka-core 69 tests, rules tests 26.
 - 2026-10-10: new rules and the `verifyIdentity` function deployed to `rentka` (Singapore, max 2 instances, secret `ID_HMAC_SECRET` in Secret Manager). The function answers; the signed-in path is NOT yet tested on a phone.
+- 2026-10-14: `verifyIdentity` changed and redeployed: the phone runs the ID checks and sends only a SHA-256 hash of the ID type and number plus pass/fail results. rentka-core 76 tests. Hashes stored before this change use the old format and no longer block duplicates (test data only).
 ## Next
 1. Phone test: registration as Lender, Borrower and Both; ID step outcomes; adding a role.
 2. Listing flow (lender): photo first, editable auto-fill, unique attribute.
