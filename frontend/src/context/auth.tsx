@@ -4,8 +4,6 @@ import {
   getAuth,
   getIdToken,
   onAuthStateChanged,
-  reload,
-  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -13,6 +11,7 @@ import {
 import { doc, getFirestore, onSnapshot, serverTimestamp, setDoc, updateDoc } from '@react-native-firebase/firestore';
 import { getFunctions, httpsCallable } from '@react-native-firebase/functions';
 
+import { type SendEmailCodeResult, type VerifyEmailCodeResult } from '@/core/emailCode';
 import { buildVerificationRequest, type IdForm, type VerificationRequest, type VerificationResult } from '@/core/identity';
 import { type Role } from '@/core/stateMachine';
 import {
@@ -24,6 +23,10 @@ type User = NonNullable<ReturnType<typeof getAuth>['currentUser']>;
 /** Cloud Functions run in Singapore, next to Firestore. */
 const FUNCTIONS_REGION = 'asia-southeast1';
 
+function callable<Req, Res>(name: string) {
+  return httpsCallable<Req, Res>(getFunctions(undefined, FUNCTIONS_REGION), name);
+}
+
 /** users/{uid}. Everything except fullName, contact, email, roles is written by Cloud Functions. */
 export type UserProfile = {
   fullName?: string;
@@ -31,6 +34,8 @@ export type UserProfile = {
   email?: string;
   roles?: string[];
   verified?: boolean;
+  /** Set only by the verifyEmailCode function. */
+  emailVerified?: boolean;
   lenderTrustScore?: number;
   lenderRatingCount?: number;
   borrowerTrustScore?: number;
@@ -54,11 +59,15 @@ type AuthValue = {
   /** True right after sign-up, until the ID step has been opened once. */
   shouldPromptVerify: boolean;
   clearVerifyPrompt: () => void;
-  /** Email/password accounts must confirm their email before the ID step. Google accounts arrive verified. */
+  /**
+   * Email/password accounts must confirm their email with a 6-digit code before the ID step.
+   * True when verifyEmailCode has set users/{uid}.emailVerified, or for Google sign-in.
+   */
   emailVerified: boolean;
-  sendVerificationEmail: () => Promise<void>;
-  /** Reloads the account from Firebase and returns whether the email is now verified. */
-  refreshEmailVerified: () => Promise<boolean>;
+  /** Emails a new 6-digit code (sendEmailCode). Refused within 60 seconds of the last one. */
+  sendEmailCode: () => Promise<SendEmailCodeResult>;
+  /** Checks a typed code (verifyEmailCode). */
+  verifyEmailCode: (code: string) => Promise<VerifyEmailCodeResult>;
   /** Shown once on the Login screen, for example after the ID step signs the user out. */
   loginNotice: string;
   /** Signs out and leaves a message for the Login screen. */
@@ -99,7 +108,8 @@ const MESSAGES: Record<string, string> = {
 export function authErrorMessage(e: unknown): string {
   const { code = '', message = '' } = (e ?? {}) as { code?: string; message?: string };
   // verifyIdentity explains its own preconditions ("Verify your email first.", "Finish your profile first.").
-  if (code === 'functions/failed-precondition' && message) return message;
+  if ((code === 'functions/failed-precondition' || code === 'functions/resource-exhausted') && message) return message;
+  if (code === 'functions/invalid-argument' && message) return message;
   return MESSAGES[code] ?? 'Something went wrong. Please try again.';
 }
 
@@ -124,14 +134,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // While register() runs, the account exists but its profile is not written yet.
   const [registering, setRegistering] = useState(false);
   const [shouldPromptVerify, setShouldPromptVerify] = useState(false);
-  const [emailVerified, setEmailVerified] = useState(false);
   const [loginNotice, setLoginNotice] = useState('');
 
   useEffect(
     () =>
       onAuthStateChanged(getAuth(), (u) => {
         setUser(u);
-        setEmailVerified(u?.emailVerified ?? false);
         if (u) setLoginNotice('');
         setInitializing(false);
       }),
@@ -167,6 +175,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   else stage = profileStatus === 'missing' ? 'needsProfile' : 'ready';
 
   const roles = cleanRoles(profile?.roles);
+  // Google accounts arrive with a verified email and skip the code.
+  const googleSignIn = user?.providerData.some((p) => p.providerId === 'google.com') ?? false;
 
   const value: AuthValue = {
     user,
@@ -175,19 +185,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     stage,
     shouldPromptVerify,
     clearVerifyPrompt: () => setShouldPromptVerify(false),
-    emailVerified,
-    sendVerificationEmail: async () => {
-      if (user) await sendEmailVerification(user);
-    },
-    refreshEmailVerified: async () => {
-      if (!user) return false;
-      await reload(user);
-      const verified = getAuth().currentUser?.emailVerified ?? false;
-      // verifyIdentity reads email_verified from the login token, so fetch a fresh one.
-      if (verified) await getIdToken(user, true);
-      setEmailVerified(verified);
-      return verified;
-    },
+    emailVerified: profile?.emailVerified === true || googleSignIn,
+    sendEmailCode: async () => (await callable<Record<string, never>, SendEmailCodeResult>('sendEmailCode')({})).data,
+    verifyEmailCode: async (code) =>
+      (await callable<{ code: string }, VerifyEmailCodeResult>('verifyEmailCode')({ code })).data,
     loginNotice,
     signOutToLogin: async (notice) => {
       await firebaseSignOut(getAuth());
@@ -201,8 +202,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const cred = await createUserWithEmailAndPassword(getAuth(), input.email.trim(), input.password);
         await writeProfile(cred.user.uid, input, cred.user.email);
-        // The account is usable even if this email fails; the Verify your email screen can resend it.
-        await sendEmailVerification(cred.user).catch(() => {});
         setShouldPromptVerify(true);
       } finally {
         setRegistering(false);
@@ -222,11 +221,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     verifyIdentity: async (form) => {
       if (!user) throw new Error('Not signed in');
       const request = buildVerificationRequest(form, profile?.fullName ?? '');
-      const call = httpsCallable<VerificationRequest, VerificationResult>(
-        getFunctions(undefined, FUNCTIONS_REGION),
-        'verifyIdentity',
-      );
-      const { data } = await call(request);
+      const { data } = await callable<VerificationRequest, VerificationResult>('verifyIdentity')(request);
       // The verified claim lives in the login token, so fetch a fresh one before the rules will see it.
       if (data.status === 'verified') await getIdToken(user, true);
       return data;

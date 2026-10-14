@@ -22,7 +22,7 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if signedIn();
-      // Allowlist: verified, isAdult, verifiedAt and the four rating fields
+      // Allowlist: verified, isAdult, verifiedAt, emailVerified, emailVerifiedAt and the four rating fields
       // (lenderTrustScore, lenderRatingCount, borrowerTrustScore, borrowerRatingCount) are function-written.
       allow create: if isOwner(uid)
         && request.resource.data.keys().hasOnly(['fullName','contact','email','roles','fcmToken','createdAt'])
@@ -96,5 +96,6 @@ service cloud.firestore {
     match /uniqueIds/{id}      { allow read, write: if false; }
     match /idHashes/{id}       { allow read, write: if false; }
     match /verifyAttempts/{id} { allow read, write: if false; }
+    match /emailCodes/{id}     { allow read, write: if false; }  // hashed email codes, functions only
   }
 }

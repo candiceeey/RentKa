@@ -1,15 +1,14 @@
 import { createHmac } from 'crypto';
 import { getAuth } from 'firebase-admin/auth';
 import { FieldValue, Timestamp, getFirestore } from 'firebase-admin/firestore';
-import { defineSecret } from 'firebase-functions/params';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import {
   decideVerification, parseVerificationRequest, recentAttempts, type VerificationResult,
 } from './core/identity';
+import { isGoogleSignIn } from './emailCode';
 import { BASE_OPTIONS } from './options';
-
-const ID_HMAC_SECRET = defineSecret('ID_HMAC_SECRET');
+import { ID_HMAC_SECRET } from './secrets';
 
 /**
  * Automatic identity check. The phone never sends the name, birthdate, ID type or ID number: it runs those
@@ -23,10 +22,7 @@ export const verifyIdentity = onCall(
   async (request): Promise<VerificationResult> => {
     const uid = request.auth?.uid;
     if (!uid) throw new HttpsError('unauthenticated', 'Sign in first.');
-    // Email/password accounts must confirm their email first. Google accounts arrive already verified.
-    if (request.auth?.token.email_verified !== true) {
-      throw new HttpsError('failed-precondition', 'Verify your email first.');
-    }
+    const googleSignIn = isGoogleSignIn(request.auth?.token);
 
     const input = parseVerificationRequest(request.data);
     if (!input) throw new HttpsError('invalid-argument', 'Update the app and try again.');
@@ -41,6 +37,10 @@ export const verifyIdentity = onCall(
       const [userSnap, attemptsSnap, hashSnap] = await Promise.all([tx.get(userRef), tx.get(attemptsRef), tx.get(hashRef)]);
       if (!userSnap.exists) throw new HttpsError('failed-precondition', 'Finish your profile first.');
       if (userSnap.get('verified') === true) return { status: 'verified' };
+      // The ID step needs a verified email: set only by verifyEmailCode. Google accounts arrive verified.
+      if (userSnap.get('emailVerified') !== true && !googleSignIn) {
+        throw new HttpsError('failed-precondition', 'Verify your email first.');
+      }
 
       const now = new Date();
       const stored = (attemptsSnap.get('times') ?? []) as Timestamp[];

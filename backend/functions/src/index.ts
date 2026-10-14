@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase-admin/app';
 
 initializeApp();
 
+export { sendEmailCode, verifyEmailCode } from './emailCode';
 export { verifyIdentity } from './verifyIdentity';
 
 // Functions still to add (docs/data-model-and-rules.md, section 5):

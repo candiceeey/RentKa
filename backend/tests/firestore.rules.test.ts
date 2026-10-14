@@ -170,6 +170,33 @@ describe('users: roles', () => {
   });
 });
 
+describe('users: email verification', () => {
+  test('R19 user cannot create own profile already marked as email-verified', async () => {
+    const db = unverifiedUser(env, NEWBIE).firestore();
+    await assertFails(db.doc(`users/${NEWBIE}`).set({ ...newProfile(['borrower']), emailVerified: true }));
+    await assertFails(db.doc(`users/${NEWBIE}`).set({ ...newProfile(['borrower']), emailVerifiedAt: new Date() }));
+  });
+
+  test('R20 user cannot set emailVerified or emailVerifiedAt later, alone or with an allowed field', async () => {
+    const db = unverifiedUser(env, UNVERIFIED).firestore();
+    await assertFails(db.doc(`users/${UNVERIFIED}`).update({ emailVerified: true }));
+    await assertFails(db.doc(`users/${UNVERIFIED}`).update({ emailVerifiedAt: new Date() }));
+    await assertFails(db.doc(`users/${UNVERIFIED}`).update({ fullName: 'Uma U.', emailVerified: true }));
+    await assertFails(db.doc(`users/${UNVERIFIED}`).set({ emailVerified: true }, { merge: true }));
+    await assertSucceeds(db.doc(`users/${UNVERIFIED}`).update({ fullName: 'Uma U.' }));
+  });
+
+  test('R21 clients cannot read or write email codes, not even their own', async () => {
+    await env.withSecurityRulesDisabled((ctx) =>
+      ctx.firestore().doc(`emailCodes/${UNVERIFIED}`).set({ codeHash: 'abc', tries: 0 }));
+    const db = unverifiedUser(env, UNVERIFIED).firestore();
+    await assertFails(db.doc(`emailCodes/${UNVERIFIED}`).get());
+    await assertFails(db.doc(`emailCodes/${UNVERIFIED}`).update({ tries: 0 }));
+    await assertFails(db.doc(`emailCodes/${UNVERIFIED}`).delete());
+    await assertFails(db.doc(`emailCodes/${NEWBIE}`).set({ codeHash: 'x', tries: 0 }));
+  });
+});
+
 describe('rentals and function-written collections', () => {
   test('R08 clients cannot write rentals, matches, deposits or reviews', async () => {
     const db = verifiedUser(env, BORROWER).firestore();
