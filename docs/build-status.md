@@ -12,11 +12,10 @@
 - 2026-10-10: new rules and the `verifyIdentity` function deployed to `rentka` (Singapore, max 2 instances, secret `ID_HMAC_SECRET` in Secret Manager). The function answers; the signed-in path is NOT yet tested on a phone.
 - 2026-10-14: `verifyIdentity` changed and redeployed: the phone runs the ID checks and sends only a SHA-256 hash of the ID type and number plus pass/fail results. rentka-core 76 tests. Hashes stored before this change use the old format and no longer block duplicates (test data only).
 - 2026-10-14, registration stage 1 (no native code): "Sign up as" dropdown, button "Register your Account", Terms only at registration and on Complete your profile, email verification link sent after registering and required before the ID step (also enforced by `verifyIdentity`, redeployed), ID step = ID type dropdown -> your ID details (ID number, name, address, sex, birthdate; manual entry) -> review -> result -> sign out to Login. rentka-core 80 tests, rules tests 26. NOT yet tried on a phone.
-- 2026-10-15: 6-digit email code replaces the email link: functions `sendEmailCode` and `verifyEmailCode` (nodemailer via Gmail), code stored only as an HMAC, 10-minute expiry, 5 wrong tries, one resend per minute; only the function sets `users.emailVerified`; `verifyIdentity` checks it. rentka-core 86 tests, rules tests 29, function tests 14. NOT deployed yet: waiting for the Gmail app password secret.
+- 2026-10-15: 6-digit email code replaces the email link: functions `sendEmailCode` and `verifyEmailCode` (nodemailer via Gmail), code stored only as an HMAC, 10-minute expiry, 5 wrong tries, one resend per minute; only the function sets `users.emailVerified`; `verifyIdentity` checks it. rentka-core 86 tests, rules tests 29, function tests 14. Deployed 2026-10-15 (rules, sendEmailCode, verifyEmailCode, verifyIdentity); a real email has NOT been sent yet.
 ## Next
-1. Set the Gmail app password secret (`npx firebase functions:secrets:set GMAIL_APP_PASSWORD --project rentka` in backend/), then deploy rules + `sendEmailCode`, `verifyEmailCode`, `verifyIdentity`.
-2. Phone test of stage 1: register -> 6-digit email code -> ID details -> result -> login; as Lender, Borrower and Both; adding a role.
-3. Registration stage 2, one native rebuild:
+1. Phone test of stage 1: register -> 6-digit email code -> ID details -> result -> login; as Lender, Borrower and Both; adding a role.
+2. Registration stage 2, one native rebuild:
    - Firebase console: enable Google sign-in; add the debug SHA-1 `5E:8F:16:06:2E:A3:CD:2C:4A:0D:54:78:76:BA:A6:F3:8C:AB:F6:25`; download the new google-services.json into frontend/.
    - "Continue with Google" on Login and Register (`@react-native-google-signin/google-signin`), then Complete your profile.
    - Own Kotlin Expo module `frontend/modules/rentka-mlkit` with bundled models: text recognition, face detection, image labeling.
@@ -25,9 +24,9 @@
    - Rebuild: `npx expo prebuild --clean` then `npx expo run:android` with the phone plugged in.
    - Decide then: turn on Firebase App Check (Play Integrity) so `verifyIdentity` accepts calls only from the genuine app.
    - Release APK later needs its own SHA-1 added in Firebase.
-4. Listing flow (lender): photo first, editable auto-fill (uses the image labeling from step 3), unique attribute.
-5. Request flow (borrower) and matching (`onItemCreate`, `onRequestCreate`).
-6. Rentals (`rentalAction`): deposit proof, handoff, extension, return, settlement, per-role ratings, chat thread.
+3. Listing flow (lender): photo first, editable auto-fill (uses the image labeling from step 2), unique attribute.
+4. Request flow (borrower) and matching (`onItemCreate`, `onRequestCreate`).
+5. Rentals (`rentalAction`): deposit proof, handoff, extension, return, settlement, per-role ratings, chat thread.
    - Handoff check: show the other party's verified name, with an "ID didn't match" cancel action.
-7. Last: Message Owner before a request, notifications, Get Started 1 to 3, real logo file.
-8. Release APK, seed demo data.
+6. Last: Message Owner before a request, notifications, Get Started 1 to 3, real logo file.
+7. Release APK, seed demo data.
