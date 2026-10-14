@@ -47,7 +47,7 @@ RentKa is a mobile peer-to-peer item rental app for Butuan City (capstone projec
 ## Known open items
 - Check that Storage rules can read Firestore (cross-service permission) with a real payment-proof upload from the app.
 - Deploying functions on this machine needs `FUNCTIONS_DISCOVERY_TIMEOUT=60` (the default 10-second code-load check timed out).
-- Terms text (frontend/src/constants/terms.ts) still has two blanks to fill: [school/program name] and [team contact email]. The logo is a placeholder until the image file is added.
+- The logo is a placeholder until the image file is added.
 - Verify the Blaze payment/hold status.
 
 ## Reference docs

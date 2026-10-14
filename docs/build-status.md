@@ -19,5 +19,5 @@
 5. ML Kit native module: photo labels and text for auto-fill, ID scan that pre-fills the ID form.
 6. Liveness check (built together with step 5, after steps 2 to 4 work): ML Kit Face Detection on the device asks for one or two random actions (blink, turn head left or right). No images or face data are saved or uploaded; only pass/fail goes into the `verifyIdentity` call. ID step order becomes form (or scan) -> liveness -> result, and without a passed check the result cannot be "verified". Until then the current flow stays and registration is not blocked. The switch is `LIVENESS_REQUIRED` in `rentka-core/src/identity.ts` (off).
    - Decide then: turn on Firebase App Check (Play Integrity) so `verifyIdentity` accepts calls only from the genuine app.
-7. Last: Message Owner before a request, notifications, Get Started 1 to 3, real logo file, fill [school/program name] and [team contact email] in the Terms.
+7. Last: Message Owner before a request, notifications, Get Started 1 to 3, real logo file.
 8. Release APK, seed demo data.

@@ -14,8 +14,10 @@ export const TERMS_TITLE = 'RENTKA TERMS AND CONDITIONS AND PRIVACY NOTICE';
 
 export const TERMS_LAST_UPDATED = 'October 14, 2026';
 
+export const TERMS_CONTACT = 'rentkabxu@gmail.com';
+
 export const TERMS_INTRO =
-  'RentKa is a mobile app that helps people in Butuan City lend and borrow items. It is a capstone project of [school/program name], used for academic testing. By ticking the box, you agree to the following.';
+  'RentKa is a mobile application designed to help people in Butuan City lend and rent items. It is a capstone project developed by two students from the BSIT Program of the College of Computing and Information Sciences (CCIS) at Caraga State University (CSU) for academic testing and evaluation. By checking this box, you acknowledge and agree to the following terms and conditions.';
 
 export const TERMS_SECTIONS: TermsSection[] = [
   {
@@ -87,7 +89,7 @@ export const TERMS_SECTIONS: TermsSection[] = [
   {
     title: '10. DATA PRIVACY RIGHTS',
     paragraphs: [
-      "We handle your data in line with the Data Privacy Act of 2012 (RA 10173). You may ask to see, correct or delete your data, or withdraw from the study, by contacting [team contact email]. Data may be used in anonymized form in the study's results.",
+      `We handle your data in line with the Data Privacy Act of 2012 (RA 10173). You may ask to see, correct or delete your data, or withdraw from the study, by contacting ${TERMS_CONTACT}. Data may be used in anonymized form in the study's results.`,
     ],
   },
   {
@@ -95,5 +97,3 @@ export const TERMS_SECTIONS: TermsSection[] = [
     paragraphs: ['We may update these terms. Continued use means you accept the changes.'],
   },
 ];
-
-export const TERMS_CONTACT = 'rentkabxu@gmail.com';
